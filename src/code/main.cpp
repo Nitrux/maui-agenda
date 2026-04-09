@@ -6,60 +6,45 @@
 #include <QQmlContext>
 
 #include <MauiKit4/Core/mauiapp.h>
-#include <MauiKit4/Calendar/moduleinfo.h>
 
 #include <KAboutData>
 #include <KLocalizedString>
 
 #include "../project_version.h"
 
-//Useful for setting quickly an app template
-#define ORG_NAME "Maui"
-#define PROJECT_NAME "Agenda"
-#define COMPONENT_NAME "agenda"
-
-#define PRODUCT_NAME "maui/agenda"
-#define PROJECT_PAGE "https://mauikit.org"
-#define REPORT_PAGE "https://invent.kde.org/maui/agenda/-/issues"
+#define AGENDA_URI "org.kde.agenda"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
-    app.setOrganizationName(QStringLiteral(ORG_NAME));
     app.setWindowIcon(QIcon(":/logo.png"));
 
-    KLocalizedString::setApplicationDomain(COMPONENT_NAME);
+    KLocalizedString::setApplicationDomain("agenda");
 
-    KAboutData about(QStringLiteral(COMPONENT_NAME),
-                     QStringLiteral(PROJECT_NAME),
+    KAboutData about(QStringLiteral("agenda"),
+                     i18n("Agenda"),
                      PROJECT_VERSION_STRING,
                      i18n("View and organize your events"),
                      KAboutLicense::LGPL_V3,
-                     APP_COPYRIGHT_NOTICE,
+                     i18n("© %1 Made by Nitrux | Built with MauiKit", QString::number(QDate::currentDate().year())),
                      QString(GIT_BRANCH) + "/" + QString(GIT_COMMIT_HASH));
 
     about.addAuthor(QStringLiteral("Camilo Higuita"), i18n("Developer"), QStringLiteral("milo.h@aol.com"));
-
-    about.setHomepage(PROJECT_PAGE);
-    about.setProductName(PRODUCT_NAME);
-    about.setBugAddress(REPORT_PAGE);
-    about.setOrganizationDomain(PROJECT_URI);
+    about.setHomepage("https://nxos.org");
+    about.setProductName("nitrux/agenda");
+    about.setBugAddress("https://invent.kde.org/maui/agenda/-/issues");
+    about.setOrganizationDomain(AGENDA_URI);
+    about.setDesktopFileName("org.kde.agenda");
     about.setProgramLogo(app.windowIcon());
 
-    about.addCredit(i18n("Kalendar Developers"));
-
-    const auto AkonadiData = MauiKitCalendar::aboutAkonadi();
-    about.addComponent(AkonadiData.name(), "", AkonadiData.version(), AkonadiData.webAddress());
-
-    const auto CalData = MauiKitCalendar::aboutData();
-    about.addComponent(CalData.name(), MauiKitCalendar::buildVersion(), CalData.version(), CalData.webAddress());
-
     KAboutData::setApplicationData(about);
+    app.setOrganizationName(QStringLiteral("Maui"));
     MauiApp::instance()->setIconName("qrc:/logo.svg");
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(about.shortDescription());
+
+    about.setupCommandLine(&parser);
     parser.process(app);
     about.processCommandLine(&parser);
 

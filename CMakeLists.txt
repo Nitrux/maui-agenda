@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
+set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS TRUE CACHE BOOL "" FORCE)
+
 project(agenda VERSION 1.0.2)
 add_compile_definitions(APP_COPYRIGHT_NOTICE="© 2022-2025 Maui Development Team")
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
@@ -33,7 +34,7 @@ include(ECMSetupVersion)
 include(ECMSourceVersionControl)
 include(FeatureSummary)
 
-find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Quick Qml Widgets)
+find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Quick Qml Widgets QuickControls2)
 find_package(KF6 ${REQUIRED_KF_VERSION} REQUIRED COMPONENTS I18n CoreAddons)
 
 find_package(MauiKit4 REQUIRED COMPONENTS Calendar)

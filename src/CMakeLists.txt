@@ -12,10 +12,16 @@ set(project_SRCS
 qt_add_executable(${PROJECT_NAME}
     ${project_SRCS})
 
+qt_policy(SET QTP0001 OLD) # keep :/app/maui/agenda/ resource prefix
+qt_policy(SET QTP0004 OLD) # no qmldir required for subdirectories
+
 qt_add_qml_module(${PROJECT_NAME} URI app.maui.agenda
     NO_PLUGIN
+    NO_IMPORT_SCAN
     QML_FILES
     controls/main.qml)
+
+target_compile_options(${PROJECT_NAME} PRIVATE -Wno-missing-include-dirs)
 
 target_compile_definitions(${PROJECT_NAME}
     PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)
@@ -26,7 +32,9 @@ target_link_libraries(${PROJECT_NAME}
     MauiKit4::Calendar
 
     Qt6::Core
+    Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
     Qt6::Widgets
 
     KF6::CoreAddons

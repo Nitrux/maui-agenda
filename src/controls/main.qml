@@ -2,8 +2,8 @@ import QtQuick
 import QtQml
 import QtQuick.Controls
 import QtQuick.Layouts
-import org.mauikit.controls as Maui
-import org.mauikit.calendar as Cal
+import org.mauikit.controls 1.0 as Maui
+import org.mauikit.calendar 1.0 as Cal
 
 Maui.ApplicationWindow
 {
@@ -16,7 +16,6 @@ Maui.ApplicationWindow
         headBar.visible: false
 
         actions: [
-
             Action
             {
                 text: i18n("Cancel")
@@ -27,10 +26,7 @@ Maui.ApplicationWindow
             {
                 text: i18n("Create")
                 Maui.Controls.status: Maui.Controls.Positive
-                onTriggered:
-                {
-                    Cal.CalendarManager.addIncidence(_eventPage.incidence)
-                }
+                onTriggered: Cal.CalendarManager.addIncidence(_eventPage.incidence)
             }
         ]
 
@@ -45,7 +41,7 @@ Maui.ApplicationWindow
     Action
     {
         id: _newEventAction
-        text: "New event"
+        text: i18n("New Event")
         icon.name: "new-event"
         onTriggered: _eventDialog.open()
     }
@@ -56,7 +52,7 @@ Maui.ApplicationWindow
         anchors.fill: parent
         sideBar.autoHide: true
 
-        sideBarContent:  Maui.Page
+        sideBarContent: Maui.Page
         {
             anchors.fill: parent
             Maui.Theme.colorSet: Maui.Theme.Window
@@ -66,26 +62,19 @@ Maui.ApplicationWindow
                 {
                     icon.name: "application-menu"
 
-                    MenuItem
+                    Repeater
                     {
-                        contentItem: Column
+                        model: Cal.CalendarManager.collections
+                        delegate: MenuItem
                         {
-                            Repeater
-                            {
-                                model: Cal.CalendarManager.collections
-                                delegate: MenuItem
-                                {
-                                    width: parent.width
-                                    checkable: true
-                                    text: model.display
-
-                                    checked: model.checkState === 2
-                                    onTriggered: model.checkState = model.checkState === 0 ? 2 : 0
-
-                                }
-                            }
+                            checkable: true
+                            text: model.display
+                            checked: model.checkState === Qt.Checked
+                            onTriggered: model.checkState = (checked ? Qt.Unchecked : Qt.Checked)
                         }
                     }
+
+                    MenuSeparator {}
 
                     MenuItem
                     {
@@ -100,7 +89,6 @@ Maui.ApplicationWindow
                         onTriggered: Maui.App.aboutDialog()
                     }
                 }
-
             ]
 
             headBar.rightContent: [
@@ -117,14 +105,13 @@ Maui.ApplicationWindow
 
                 holder.emoji: "view-calendar"
                 holder.title: i18n("Empty!")
-                holder.body: "No events for this day"
+                holder.body: i18n("No events for this day")
 
                 model: Cal.IncidenceOccurrenceModel
                 {
                     id: _eventsModel
-                    start: _stackView.currentItem.selectedDate
-                    length: 0
-                    calendar: Cal.CalendarManager.calendar
+                    start: _stackView.currentItem ? _stackView.currentItem.selectedDate : new Date()
+                    length: 1
                     filter: Cal.Filter
                 }
 
@@ -132,9 +119,8 @@ Maui.ApplicationWindow
                 {
                     width: ListView.view.width
 
-                    property var data : model.incidences
                     label1.text: model.summary
-                    label2.text: model.startTime.toLocaleTimeString()
+                    label2.text: model.startTime.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
                 }
 
                 header: Item
@@ -163,7 +149,7 @@ Maui.ApplicationWindow
 
                             Pane
                             {
-                                implicitWidth: Math.max(implicitContentWidth+ leftPadding + rightPadding, height)
+                                implicitWidth: Math.max(implicitContentWidth + leftPadding + rightPadding, height)
                                 implicitHeight: implicitContentHeight + topPadding + bottomPadding
 
                                 padding: Maui.Style.space.medium
@@ -177,8 +163,8 @@ Maui.ApplicationWindow
                                 contentItem: Label
                                 {
                                     horizontalAlignment: Qt.AlignHCenter
-                                    color:"orange"
-                                    text: _eventsModel.start.getDate()
+                                    color: "orange"
+                                    text: Qt.formatDate(_eventsModel.start, "d")
                                     font.bold: true
                                     font.weight: Font.Black
                                     font.pointSize: 32
@@ -188,14 +174,13 @@ Maui.ApplicationWindow
                             Label
                             {
                                 Layout.fillWidth: true
-                                text: Qt.formatDateTime(_eventsModel.start, "MMM yyyy")
+                                text: Qt.formatDate(_eventsModel.start, "MMM yyyy")
                                 font.bold: true
                                 font.weight: Font.DemiBold
                                 font.pointSize: 12
                             }
                         }
                     }
-
                 }
             }
         }
@@ -204,8 +189,9 @@ Maui.ApplicationWindow
         {
             anchors.fill: parent
             Maui.Controls.showCSD: true
-            title: _stackView.currentItem.title
+            title: _stackView.currentItem ? _stackView.currentItem.title : ""
             headBar.background: null
+
             headBar.leftContent: [
                 ToolButton
                 {
@@ -219,7 +205,7 @@ Maui.ApplicationWindow
                     icon.name: "go-previous"
                     onClicked: _stackView.pop()
                     visible: _stackView.depth === 2
-                    text: _yearView.title
+                    text: _stackView.currentItem ? _stackView.currentItem.title : ""
                 }
             ]
 
@@ -232,30 +218,30 @@ Maui.ApplicationWindow
                 Action
                 {
                     icon.name: "go-previous"
-                    text: i18n("Previous Year")
+                    text: i18n("Previous")
                     shortcut: "Left"
-                    onTriggered: _stackView.currentItem.previousDate()
+                    onTriggered: if (_stackView.currentItem) _stackView.currentItem.previousDate()
                 }
 
                 Action
                 {
                     icon.name: "go-jump-today"
                     text: i18n("Today")
-                    onTriggered: _stackView.currentItem.resetDate()
+                    onTriggered: if (_stackView.currentItem) _stackView.currentItem.resetDate()
                 }
 
                 Action
                 {
                     icon.name: "go-next"
-                    text: i18n("Next Year")
+                    text: i18n("Next")
                     shortcut: "Right"
-                    onTriggered: _stackView.currentItem.nextDate()
+                    onTriggered: if (_stackView.currentItem) _stackView.currentItem.nextDate()
                 }
             }
 
             StackView
             {
-                id:_stackView
+                id: _stackView
                 anchors.fill: parent
                 clip: true
 
@@ -263,12 +249,11 @@ Maui.ApplicationWindow
                 {
                     id: _yearView
                     onMonthClicked: (date) =>
-                                    {
-                                        _stackView.push(_monthViewComponent)
-                                        _stackView.currentItem.setToDate(_stackView.currentItem.addMonthsToDate(date, -1))
-                                    }
+                    {
+                        _stackView.push(_monthViewComponent)
+                        _stackView.currentItem.setToDate(_stackView.currentItem.addMonthsToDate(date, -1))
+                    }
                 }
-
 
                 Component
                 {
@@ -279,41 +264,21 @@ Maui.ApplicationWindow
                     }
                 }
 
-
-
                 pushExit: Transition
                 {
                     ParallelAnimation
                     {
-                        PropertyAnimation
-                        {
-                            property: "scale"
-                            from: 1
-                            to: 4
-                            duration: 200
-                            easing.type: Easing.InOutCubic
-                        }
-
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.InOutCubic }
+                        PropertyAnimation { property: "scale"; from: 1; to: 4; duration: 200; easing.type: Easing.InOutCubic }
+                        NumberAnimation  { property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.InOutCubic }
                     }
-
                 }
 
                 pushEnter: Transition
                 {
                     ParallelAnimation
                     {
-                        PropertyAnimation
-                        {
-                            //                        target: _yearView.gridView.currentItem
-                            property: "scale"
-                            from: 0
-                            to: 1
-                            duration: 200
-                            easing.type: Easing.OutCubic
-                        }
-
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+                        PropertyAnimation { property: "scale"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+                        NumberAnimation  { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
                     }
                 }
 
@@ -321,17 +286,8 @@ Maui.ApplicationWindow
                 {
                     ParallelAnimation
                     {
-                        PropertyAnimation
-                        {
-                            //                        target: _yearView.gridView.currentItem
-                            property: "scale"
-                            from: 4
-                            to: 1
-                            duration: 200
-                            easing.type: Easing.InOutCubic
-                        }
-
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InOutCubic }
+                        PropertyAnimation { property: "scale"; from: 4; to: 1; duration: 200; easing.type: Easing.InOutCubic }
+                        NumberAnimation  { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InOutCubic }
                     }
                 }
 
@@ -339,23 +295,11 @@ Maui.ApplicationWindow
                 {
                     ParallelAnimation
                     {
-                        PropertyAnimation
-                        {
-                            //                        target: _yearView.gridView.currentItem
-                            property: "scale"
-                            from: 1
-                            to: 0
-                            duration: 200
-                            easing.type: Easing.OutCubic
-                        }
-
-                        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.OutCubic }
+                        PropertyAnimation { property: "scale"; from: 1; to: 0; duration: 200; easing.type: Easing.OutCubic }
+                        NumberAnimation  { property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.OutCubic }
                     }
-
                 }
             }
         }
-
     }
-
 }
