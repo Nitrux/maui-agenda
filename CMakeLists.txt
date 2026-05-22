@@ -31,8 +31,8 @@ endif()
 
 set(QT_MAJOR_VERSION 6)
 
-set(REQUIRED_QT_VERSION 6.5.2)
-set(REQUIRED_KF_VERSION 5.240.0)
+set(REQUIRED_QT_VERSION 6.9)
+set(REQUIRED_KF_VERSION 6.13.0)
 
 set(PROJECT_URI "org.kde.${PROJECT_NAME}")
 add_definitions(-DPROJECT_URI="${PROJECT_URI}")
@@ -53,7 +53,7 @@ include(FeatureSummary)
 find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Quick Qml Widgets QuickControls2)
 find_package(KF6 ${REQUIRED_KF_VERSION} REQUIRED COMPONENTS I18n CoreAddons)
 
-find_package(MauiKit4 REQUIRED COMPONENTS Calendar)
+find_package(MauiKit4 4.0.3 REQUIRED COMPONENTS Calendar)
 
 if(ECM_SOURCE_UNDER_VERSION_CONTROL)
     execute_process(
