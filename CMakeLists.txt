@@ -53,7 +53,9 @@ include(FeatureSummary)
 find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Quick Qml Widgets QuickControls2)
 find_package(KF6 ${REQUIRED_KF_VERSION} REQUIRED COMPONENTS I18n CoreAddons)
 
-find_package(MauiKit4 4.0.3 REQUIRED COMPONENTS Calendar)
+set(REQUIRED_MAUIKIT_VERSION 4.0.4)
+
+find_package(MauiKit4 ${REQUIRED_MAUIKIT_VERSION} REQUIRED COMPONENTS Calendar)
 
 if(ECM_SOURCE_UNDER_VERSION_CONTROL)
     execute_process(
