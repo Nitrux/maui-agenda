@@ -34,7 +34,7 @@ set(QT_MAJOR_VERSION 6)
 set(REQUIRED_QT_VERSION 6.9)
 set(REQUIRED_KF_VERSION 6.13.0)
 
-set(PROJECT_URI "org.kde.${PROJECT_NAME}")
+set(PROJECT_URI "org.maui.${PROJECT_NAME}")
 add_definitions(-DPROJECT_URI="${PROJECT_URI}")
 
 find_package(ECM ${REQUIRED_KF_VERSION} REQUIRED NO_MODULE)
@@ -87,9 +87,9 @@ add_subdirectory(src)
 
 ki18n_install(po)
 
-install(FILES org.kde.agenda.metainfo.xml  DESTINATION ${KDE_INSTALL_METAINFODIR})
+install(FILES org.maui.agenda.metainfo.xml  DESTINATION ${KDE_INSTALL_METAINFODIR})
 
-install(FILES src/org.kde.agenda.desktop DESTINATION ${KDE_INSTALL_APPDIR})
+install(FILES src/org.maui.agenda.desktop DESTINATION ${KDE_INSTALL_APPDIR})
 
 install(FILES src/assets/logo.svg DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps RENAME ${PROJECT_NAME}.svg)
 

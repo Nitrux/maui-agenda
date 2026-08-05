@@ -12,7 +12,7 @@
 
 #include "../project_version.h"
 
-#define AGENDA_URI "org.kde.agenda"
+#define AGENDA_URI "org.maui.agenda"
 
 int main(int argc, char *argv[])
 {
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     about.setProductName("nitrux/agenda");
     about.setBugAddress("https://invent.kde.org/maui/agenda/-/issues");
     about.setOrganizationDomain(AGENDA_URI);
-    about.setDesktopFileName("org.kde.agenda");
+    about.setDesktopFileName("org.maui.agenda");
     about.setProgramLogo(app.windowIcon());
 
     KAboutData::setApplicationData(about);
