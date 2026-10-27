@@ -3,11 +3,14 @@
 #include <QCommandLineParser>
 #include <QDate>
 #include <QIcon>
+#include <QSurfaceFormat>
 #include <QQmlContext>
 
 #include <MauiKit4/Core/mauiapp.h>
+#include <MauiKit4/Calendar/moduleinfo.h>
 
 #include <KAboutData>
+#include <KLocalizedQmlContext>
 #include <KLocalizedString>
 
 #include "../project_version.h"
@@ -16,6 +19,10 @@
 
 int main(int argc, char *argv[])
 {
+    QSurfaceFormat format;
+    format.setAlphaBufferSize(8);
+    QSurfaceFormat::setDefaultFormat(format);
+
     QApplication app(argc, argv);
 
     app.setWindowIcon(QIcon(":/logo.png"));
@@ -31,12 +38,16 @@ int main(int argc, char *argv[])
                      QString(GIT_BRANCH) + "/" + QString(GIT_COMMIT_HASH));
 
     about.addAuthor(QStringLiteral("Camilo Higuita"), i18n("Developer"), QStringLiteral("milo.h@aol.com"));
+    about.addAuthor(QStringLiteral("Uri Herrera"), i18n("Developer"), QStringLiteral("uri_herrera@nxos.org"));
     about.setHomepage("https://nxos.org");
     about.setProductName("nitrux/agenda");
     about.setBugAddress("https://invent.kde.org/maui/agenda/-/issues");
     about.setOrganizationDomain(AGENDA_URI);
     about.setDesktopFileName("org.maui.agenda");
     about.setProgramLogo(app.windowIcon());
+
+    const auto calendarData = MauiKitCalendar::aboutData();
+    about.addComponent(calendarData.name(), MauiKitCalendar::buildVersion(), calendarData.version(), calendarData.webAddress());
 
     KAboutData::setApplicationData(about);
     app.setOrganizationName(QStringLiteral("Maui"));
@@ -50,7 +61,8 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    engine.rootContext()->setContextObject(new KLocalizedContext(&engine));
+    engine.rootContext()->setContextObject(new KLocalizedQmlContext(&engine));
+
 
     const QUrl url(QStringLiteral("qrc:/app/maui/agenda/controls/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

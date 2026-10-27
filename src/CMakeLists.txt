@@ -19,7 +19,8 @@ qt_add_qml_module(${PROJECT_NAME} URI app.maui.agenda
     NO_PLUGIN
     NO_IMPORT_SCAN
     QML_FILES
-    controls/main.qml)
+    controls/main.qml
+    controls/CalendarSidebar.qml)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wno-missing-include-dirs)
 
@@ -38,6 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Widgets
 
     KF6::CoreAddons
-    KF6::I18n)
+    KF6::I18n
+    KF6::I18nQml)
 
 install(TARGETS ${PROJECT_NAME} ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})

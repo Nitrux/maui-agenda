@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS TRUE CACHE BOOL "" FORCE)
 
-project(agenda VERSION 1.0.2)
+project(agenda VERSION 4.0.5 LANGUAGES CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR "This project supports Linux only.")
@@ -34,6 +34,9 @@ set(QT_MAJOR_VERSION 6)
 set(REQUIRED_QT_VERSION 6.9)
 set(REQUIRED_KF_VERSION 6.13.0)
 
+set(QT_NO_PRIVATE_MODULE_WARNING ON CACHE BOOL
+    "MauiKit uses private WaylandClient API" FORCE)
+
 set(PROJECT_URI "org.maui.${PROJECT_NAME}")
 add_definitions(-DPROJECT_URI="${PROJECT_URI}")
 
@@ -50,12 +53,13 @@ include(ECMSetupVersion)
 include(ECMSourceVersionControl)
 include(FeatureSummary)
 
-find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Quick Qml Widgets QuickControls2)
+find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE COMPONENTS Core Quick Qml Widgets QuickControls2)
 find_package(KF6 ${REQUIRED_KF_VERSION} REQUIRED COMPONENTS I18n CoreAddons)
 
-set(REQUIRED_MAUIKIT_VERSION 4.0.4)
+set(REQUIRED_MAUIKIT_VERSION 4.0.5)
 
-find_package(MauiKit4 ${REQUIRED_MAUIKIT_VERSION} REQUIRED COMPONENTS Calendar)
+find_package(MauiKit4 ${REQUIRED_MAUIKIT_VERSION} REQUIRED)
+find_package(MauiKitCalendar4 ${REQUIRED_MAUIKIT_VERSION} REQUIRED)
 
 if(ECM_SOURCE_UNDER_VERSION_CONTROL)
     execute_process(
@@ -99,6 +103,8 @@ feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
 
 file(GLOB_RECURSE ALL_CLANG_FORMAT_SOURCE_FILES *.cpp *.h)
 kde_clang_format(${ALL_CLANG_FORMAT_SOURCE_FILES})
+
+qt_finalize_project()
 
 
 if(NOT TARGET uninstall)
