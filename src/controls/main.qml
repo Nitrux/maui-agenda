@@ -23,7 +23,7 @@ Maui.ApplicationWindow
         if (currentView === 1)
             return Qt.formatDate(currentDate, "MMMM yyyy")
         if (currentView === 2)
-            return i18n("Week of %1", Qt.formatDate(weekStart(currentDate), Qt.DefaultLocaleShortDate))
+            return i18n("Week of %1", Qt.formatDate(weekStart(currentDate), "dd/MM/yyyy"))
         return Qt.formatDate(currentDate, "dd/MM/yyyy")
     }
     readonly property alias appSettings: agendaSettings
@@ -87,27 +87,67 @@ Maui.ApplicationWindow
         id: eventDialog
         property bool editing: false
         title: editing ? i18n("Edit Event") : i18n("Add Event")
+        implicitWidth: Maui.Style.units.gridUnit * 24
+        spacing: 0
         standardButtons: Dialog.NoButton
         padding: 0
 
         Component.onCompleted:
         {
-            contentItem.leftPadding = Maui.Style.space.small
-            contentItem.rightPadding = Maui.Style.space.small
-            compactEventForm()
+            contentItem.leftPadding = Maui.Style.contentMargins
+            contentItem.rightPadding = Maui.Style.contentMargins
+            contentItem.bottomPadding = 0
+            Qt.callLater(compactEventForm)
+            Qt.callLater(compactActionLayout)
+        }
+
+        function compactActionLayout()
+        {
+            const layout = eventFooter
+            layout.rows = 1
+            layout.columns = editing ? 3 : 2
+            layout.rowSpacing = Maui.Style.space.small
+            layout.columnSpacing = Maui.Style.space.small
         }
 
         function compactEventForm()
         {
+            eventPage.contentItem.topPadding = 0
             const groups = eventPage.contentItem.container.children
             for (let groupIndex = 0; groupIndex < groups.length; ++groupIndex)
             {
                 const group = groups[groupIndex]
-                group.padding = 0
+                group.leftPadding = 0
+                group.rightPadding = 0
+                if (groupIndex === 0)
+                    group.topPadding = 0
+                group.template.visible = false
+                group.contentItem.spacing = Maui.Style.defaultSpacing
 
                 const items = group.contentItem.children
                 for (let itemIndex = 1; itemIndex < items.length; ++itemIndex)
-                    items[itemIndex].padding = 0
+                {
+                    items[itemIndex].padding = Maui.Style.defaultPadding
+                    items[itemIndex].leftPadding = 0
+                    items[itemIndex].rightPadding = 0
+                    if (groupIndex === 0 && itemIndex === 1)
+                        items[itemIndex].topPadding = 0
+                }
+
+                if (groupIndex === 1 && items.length > 1)
+                    items[1].hoverEnabled = false
+                if (groupIndex === 1 && items.length > 1 && items[1].contentItem.children.length > 1)
+                    items[1].contentItem.children[1].children[0].hoverEnabled = true
+            }
+
+            eventPage.contentItem.bottomPadding = 0
+            if (groups.length > 0)
+            {
+                const lastGroup = groups[groups.length - 1]
+                lastGroup.bottomPadding = 0
+                const lastItems = lastGroup.contentItem.children
+                if (lastItems.length > 1)
+                    lastItems[lastItems.length - 1].bottomPadding = 0
             }
         }
 
@@ -116,6 +156,8 @@ Maui.ApplicationWindow
             editing = false
             eventPage.incidence.setNewEvent()
             eventPage.incidence.setIncidenceStartDate(date.getDate(), date.getMonth(), date.getFullYear())
+            Qt.callLater(eventDialog.compactEventForm)
+            Qt.callLater(eventDialog.compactActionLayout)
             open()
         }
 
@@ -126,6 +168,8 @@ Maui.ApplicationWindow
             editing = true
             eventPage.incidence.incidencePtr = incidence
             eventPage.incidence.triggerEditMode()
+            Qt.callLater(eventDialog.compactEventForm)
+            Qt.callLater(eventDialog.compactActionLayout)
             open()
         }
 
@@ -149,6 +193,7 @@ Maui.ApplicationWindow
             {
                 text: eventDialog.editing ? i18n("Save") : i18n("Create")
                 Maui.Controls.status: Maui.Controls.Positive
+                enabled: eventDialog.editing || eventPage.incidence.summary.trim().length > 0
                 onTriggered:
                 {
                     if (eventDialog.editing)
@@ -164,20 +209,26 @@ Maui.ApplicationWindow
         {
             id: eventPage
             Layout.fillWidth: true
+            Component.onCompleted: Qt.callLater(eventDialog.compactEventForm)
         }
 
-        RowLayout
+        GridLayout
         {
+            id: eventFooter
             Layout.fillWidth: true
-            Layout.topMargin: Maui.Style.space.small
-            spacing: Maui.Style.space.small
+            Layout.topMargin: 12
+            Layout.bottomMargin: 0
+            rows: 1
+            columns: eventDialog.editing ? 3 : 2
+            rowSpacing: 0
+            columnSpacing: Maui.Style.space.small
 
             Button
             {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
-                text: eventDialog.eventActions[0].text
-                onClicked: eventDialog.eventActions[0].trigger()
+                action: eventDialog.eventActions[0]
+                Maui.Controls.status: Maui.Controls.Normal
             }
 
             Button
@@ -185,18 +236,16 @@ Maui.ApplicationWindow
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
                 visible: eventDialog.editing
+                action: eventDialog.eventActions[1]
                 Maui.Controls.status: Maui.Controls.Negative
-                text: eventDialog.eventActions[1].text
-                onClicked: eventDialog.eventActions[1].trigger()
             }
 
             Button
             {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
+                action: eventDialog.eventActions[2]
                 Maui.Controls.status: Maui.Controls.Positive
-                text: eventDialog.eventActions[2].text
-                onClicked: eventDialog.eventActions[2].trigger()
             }
         }
     }
