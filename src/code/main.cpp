@@ -8,6 +8,7 @@
 
 #include <MauiKit4/Core/mauiapp.h>
 #include <MauiKit4/Calendar/moduleinfo.h>
+#include <calendarmanager.h>
 
 #include <KAboutData>
 #include <KLocalizedQmlContext>
@@ -23,9 +24,10 @@ int main(int argc, char *argv[])
     format.setAlphaBufferSize(8);
     QSurfaceFormat::setDefaultFormat(format);
 
+    qputenv("QT_QPA_PLATFORM", "wayland");
     QApplication app(argc, argv);
 
-    app.setWindowIcon(QIcon(":/logo.png"));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("agenda")));
 
     KLocalizedString::setApplicationDomain("agenda");
 
@@ -51,13 +53,21 @@ int main(int argc, char *argv[])
 
     KAboutData::setApplicationData(about);
     app.setOrganizationName(QStringLiteral("Maui"));
-    MauiApp::instance()->setIconName("qrc:/logo.svg");
+    MauiApp::instance()->setIconName(QStringLiteral("agenda"));
 
     QCommandLineParser parser;
+    QCommandLineOption reminderDaemonOption(QStringLiteral("reminder-daemon"), QStringLiteral("Run the reminder monitor without opening the calendar window."));
+    parser.addOption(reminderDaemonOption);
 
     about.setupCommandLine(&parser);
     parser.process(app);
     about.processCommandLine(&parser);
+    const bool reminderDaemon = parser.isSet(reminderDaemonOption);
+
+    if (reminderDaemon) {
+        Q_UNUSED(CalendarManager::instance());
+        return app.exec();
+    }
 
     QQmlApplicationEngine engine;
 

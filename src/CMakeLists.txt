@@ -6,8 +6,7 @@
 remove_definitions(-DQT_NO_CAST_FROM_ASCII -DQT_STRICT_ITERATORS -DQT_NO_CAST_FROM_BYTEARRAY -DQT_NO_URL_CAST_FROM_STRING)
 
 set(project_SRCS
-    code/main.cpp
-    assets/assets.qrc)
+    code/main.cpp)
 
 qt_add_executable(${PROJECT_NAME}
     ${project_SRCS})
@@ -31,6 +30,8 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
     MauiKit4
     MauiKit4::Calendar
+    MauiKit4::Accounts
+    MauiKit4::FileBrowsing
 
     Qt6::Core
     Qt6::Qml
