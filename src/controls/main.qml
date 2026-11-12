@@ -21,6 +21,7 @@ Maui.ApplicationWindow
     property int currentView: 0
     property date currentDate: new Date()
     property bool workWeek: agendaSettings.workWeek
+    property var taskItems: []
     readonly property string currentViewTitle: {
         if (currentView === 0)
             return Qt.formatDate(currentDate, "yyyy")
@@ -30,6 +31,8 @@ Maui.ApplicationWindow
             return i18n("Week of %1", Qt.formatDate(weekStart(currentDate), "dd/MM/yyyy"))
         if (currentView === 4)
             return i18n("Schedule")
+        if (currentView === 5)
+            return i18n("Tasks")
         return Qt.formatDate(currentDate, "dd/MM/yyyy")
     }
     readonly property alias appSettings: agendaSettings
@@ -46,6 +49,22 @@ Maui.ApplicationWindow
     function selectDate(date)
     {
         root.currentDate = date
+    }
+
+    function refreshTaskItems()
+    {
+        const hiddenCollections = MauiCalendar.Filter.collectionIds
+        root.taskItems = MauiCalendar.CalendarManager.todos().filter(task => !hiddenCollections.includes(String(task.collectionId)))
+    }
+
+    function setTaskCompleted(task, completed)
+    {
+        const wrapper = Qt.createQmlObject("import org.mauikit.calendar 1.0; IncidenceWrapper {}", root, "taskCompletion")
+        wrapper.incidencePtr = task.incidencePtr
+        wrapper.triggerEditMode()
+        wrapper.todoCompleted = completed
+        MauiCalendar.CalendarManager.editIncidence(wrapper)
+        wrapper.destroy()
     }
 
     function changeDate(amount)
@@ -75,6 +94,19 @@ Maui.ApplicationWindow
         eventDialog.openNew(root.currentDate)
     }
 
+    function openNewTask()
+    {
+        taskDialog.openNew(root.currentDate)
+    }
+
+    onCurrentViewChanged: if (currentView === 5) refreshTaskItems()
+
+    Connections
+    {
+        target: MauiCalendar.Filter
+        function onCollectionIdsChanged() { root.refreshTaskItems() }
+    }
+
     Component {
         id: fileDialogComponent
         FM.FileDialog { onClosed: destroy() }
@@ -87,6 +119,7 @@ Maui.ApplicationWindow
     }
 
     Component.onCompleted: {
+        refreshTaskItems()
         const commandLineArguments = Qt.application.arguments
         for (let i = 1; i < commandLineArguments.length; ++i) {
             if (String(commandLineArguments[i]).toLowerCase().endsWith(".ics"))
@@ -497,6 +530,7 @@ Maui.ApplicationWindow
         function onCalendarChanged()
         {
             console.log("[Agenda] CalendarManager calendarChanged emitted")
+            root.refreshTaskItems()
         }
         function onCaldavPermissionsChanged()
         {
@@ -564,6 +598,7 @@ Maui.ApplicationWindow
     {
         id: eventDialog
         property bool editing: false
+        property bool allDayChoiceMade: false
         property var occurrenceStart: null
         title: editing ? i18n("Edit Event") : i18n("Add Event")
         hint: 1
@@ -576,10 +611,22 @@ Maui.ApplicationWindow
         function openNew(date)
         {
             editing = false
+            allDayChoiceMade = false
             eventIncidence.setNewEvent()
+            eventIncidence.eventStatus = 2
+            eventIncidence.allDay = false
+            _attendeeNameField.text = ""
+            _attendeeEmailField.text = ""
             occurrenceStart = null
             eventIncidence.setIncidenceStartDate(date.getDate(), date.getMonth() + 1, date.getFullYear())
             open()
+        }
+
+        function openNewAt(date)
+        {
+            openNew(date)
+            eventIncidence.allDay = false
+            eventIncidence.setIncidenceStartTime(date.getHours(), date.getMinutes())
         }
 
         function openExisting(incidence, occurrence)
@@ -590,6 +637,8 @@ Maui.ApplicationWindow
             occurrenceStart = occurrence || null
             eventIncidence.incidencePtr = incidence
             eventIncidence.triggerEditMode()
+            _attendeeNameField.text = ""
+            _attendeeEmailField.text = ""
             if (occurrenceStart !== null) eventIncidence.setIncidenceStart(occurrenceStart, true)
             open()
         }
@@ -628,9 +677,11 @@ Maui.ApplicationWindow
         {
             text: eventDialog.editing ? i18n("Save") : i18n("Create")
             Maui.Controls.status: Maui.Controls.Positive
-            enabled: eventIncidence.summary.trim().length > 0 && eventIncidence.incidenceEnd > eventIncidence.incidenceStart && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventIncidence.collectionId)
+            enabled: eventIncidence.summary.trim().length > 0 && (eventIncidence.allDay ? Qt.formatDate(eventIncidence.incidenceEnd, "yyyyMMdd") >= Qt.formatDate(eventIncidence.incidenceStart, "yyyyMMdd") : eventIncidence.incidenceEnd > eventIncidence.incidenceStart) && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventIncidence.collectionId)
             onTriggered:
             {
+                if (!eventDialog.editing && !eventDialog.allDayChoiceMade)
+                    eventIncidence.allDay = false
                 console.log("[Agenda] event save triggered", "editing:", eventDialog.editing, "title:", eventIncidence.summary, "collectionId:", eventIncidence.collectionId, "start:", eventIncidence.incidenceStart.toString(), "end:", eventIncidence.incidenceEnd.toString(), "allDay:", eventIncidence.allDay)
                 if (eventDialog.editing)
                 {
@@ -640,7 +691,14 @@ Maui.ApplicationWindow
                         MauiCalendar.CalendarManager.editIncidence(eventIncidence)
                 }
                 else
+                {
                     MauiCalendar.CalendarManager.addIncidence(eventIncidence)
+                    if (root.currentView === 0)
+                    {
+                        root.selectDate(eventIncidence.incidenceStart)
+                        root.currentView = 3
+                    }
+                }
                 console.log("[Agenda] event save request dispatched")
                 eventDialog.close()
             }
@@ -673,7 +731,7 @@ Maui.ApplicationWindow
             Maui.Controls.subtitle: eventIncidence.summary.trim().length === 0 ? i18n("Event title cannot be empty.") : ""
             Maui.Controls.status: eventIncidence.summary.trim().length === 0 ? Maui.Controls.Negative : Maui.Controls.Normal
             text: eventIncidence.summary
-            onTextChanged: eventIncidence.summary = text
+            onTextEdited: eventIncidence.summary = text
             onAccepted: eventIncidence.summary = text
         }
 
@@ -691,8 +749,24 @@ Maui.ApplicationWindow
                 model: MauiCalendar.CalendarManager.collections
                 textRole: "display"
                 valueRole: "collectionId"
-                currentIndex: eventIncidence.collectionId
+                currentIndex: _calendarComboBox.indexOfValue(eventIncidence.collectionId)
                 onActivated: eventIncidence.collectionId = currentValue
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Status")
+
+            ComboBox
+            {
+                Layout.fillWidth: true
+                model: [i18n("None"), i18n("Tentative"), i18n("Confirmed")]
+                currentIndex: eventIncidence.eventStatus
+                onActivated: eventIncidence.eventStatus = currentIndex
             }
         }
 
@@ -702,7 +776,7 @@ Maui.ApplicationWindow
             Layout.fillWidth: true
             Maui.Controls.title: i18n("Location")
             text: eventIncidence.location
-            onTextChanged: eventIncidence.location = text
+            onTextEdited: eventIncidence.location = text
         }
 
         Maui.TextField
@@ -711,7 +785,77 @@ Maui.ApplicationWindow
             Layout.fillWidth: true
             Maui.Controls.title: i18n("Description")
             text: eventIncidence.description
-            onTextChanged: eventIncidence.description = text
+            onTextEdited: eventIncidence.description = text
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Attendees")
+
+            Repeater
+            {
+                model: eventIncidence.attendees
+
+                delegate: RowLayout
+                {
+                    required property var modelData
+                    required property int index
+                    Layout.fillWidth: true
+
+                    ColumnLayout
+                    {
+                        Layout.fillWidth: true
+                        Label { text: modelData.fullName.length > 0 ? modelData.fullName : modelData.name }
+                        Label { text: modelData.email; color: Qt.alpha(Maui.Theme.textColor, 0.72) }
+                        Label { text: modelData.status; color: Qt.alpha(Maui.Theme.textColor, 0.72) }
+                    }
+
+                    ComboBox
+                    {
+                        model: [i18n("Required"), i18n("Optional"), i18n("Non participant"), i18n("Chairperson")]
+                        property var roleKeys: ["required", "optional", "nonparticipant", "chair"]
+                        currentIndex: Math.max(0, roleKeys.indexOf(modelData.role))
+                        onActivated: function(selection) { eventIncidence.setAttendeeRole(index, roleKeys[selection]) }
+                    }
+
+                    ToolButton
+                    {
+                        icon.name: "edit-delete"
+                        onClicked: eventIncidence.removeAttendee(index)
+                    }
+                }
+            }
+
+            Maui.TextField
+            {
+                id: _attendeeNameField
+                Layout.fillWidth: true
+                Maui.Controls.title: i18n("Name")
+            }
+
+            Maui.TextField
+            {
+                id: _attendeeEmailField
+                Layout.fillWidth: true
+                Maui.Controls.title: i18n("Email")
+                inputMethodHints: Qt.ImhEmailCharactersOnly
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Add attendee")
+                enabled: _attendeeEmailField.text.trim().length > 0
+                onClicked:
+                {
+                    eventIncidence.addAttendee(_attendeeNameField.text, _attendeeEmailField.text)
+                    _attendeeNameField.text = ""
+                    _attendeeEmailField.text = ""
+                }
+            }
         }
 
         Maui.SectionItem
@@ -728,8 +872,9 @@ Maui.ApplicationWindow
             {
                 id: _allDaySwitch
                 checked: eventIncidence.allDay
-                onToggled:
+                onClicked:
                 {
+                    eventDialog.allDayChoiceMade = true
                     if (!checked)
                         eventIncidence.setIncidenceTimeToNearestQuarterHour()
                     eventIncidence.allDay = checked
@@ -1119,6 +1264,348 @@ Maui.ApplicationWindow
         }
     }
 
+    Maui.PopupPage
+    {
+        id: taskDialog
+        property bool editing: false
+        title: editing ? i18n("Edit task") : i18n("New task")
+        hint: 1
+        maxWidth: Maui.Style.units.gridUnit * 22
+        persistent: true
+        spacing: Maui.Style.space.medium
+
+        function openNew(date)
+        {
+            editing = false
+            taskIncidence.setNewTodo()
+            taskIncidence.allDay = true
+            const selected = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+            taskIncidence.incidenceStart = selected
+            taskIncidence.incidenceEnd = selected
+            taskIncidence.collectionId = 0
+            open()
+        }
+
+        function openExisting(incidence)
+        {
+            if (!incidence) return
+            editing = true
+            taskIncidence.incidencePtr = incidence
+            taskIncidence.triggerEditMode()
+            open()
+        }
+
+        property Action cancelAction: Action
+        {
+            text: i18n("Cancel")
+            onTriggered: taskDialog.close()
+        }
+
+        property Action saveAction: Action
+        {
+            text: taskDialog.editing ? i18n("Save") : i18n("Create task")
+            Maui.Controls.status: Maui.Controls.Positive
+            enabled: {
+                const start = taskIncidence.incidenceStart
+                const end = taskIncidence.incidenceEnd
+                const hasStart = start && start.getTime() >= 0
+                const hasEnd = end && end.getTime() >= 0
+                const validRange = !hasStart || !hasEnd || (taskIncidence.allDay ? start.toDateString() === end.toDateString() : end >= start)
+                return taskIncidence.summary.trim().length > 0 && validRange && !MauiCalendar.CalendarManager.isCollectionReadOnly(taskIncidence.collectionId)
+            }
+            onTriggered:
+            {
+                if (taskDialog.editing)
+                    MauiCalendar.CalendarManager.editIncidence(taskIncidence)
+                else
+                    MauiCalendar.CalendarManager.addIncidence(taskIncidence)
+                taskDialog.close()
+            }
+        }
+
+        actions: [cancelAction, saveAction]
+
+        MauiCalendar.IncidenceWrapper
+        {
+            id: taskIncidence
+        }
+
+        Maui.TextField
+        {
+            id: taskTitleField
+            Layout.fillWidth: true
+            Maui.Controls.title: i18n("Task title")
+            text: taskIncidence.summary
+            onTextEdited: taskIncidence.summary = text
+            onAccepted: taskIncidence.summary = text
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Calendar")
+
+            ComboBox
+            {
+                id: taskCalendarComboBox
+                Layout.fillWidth: true
+                model: MauiCalendar.CalendarManager.collections
+                textRole: "display"
+                valueRole: "collectionId"
+                currentIndex: taskCalendarComboBox.indexOfValue(taskIncidence.collectionId)
+                onActivated: taskIncidence.collectionId = currentValue
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Start date")
+
+            RowLayout
+            {
+                MauiCalendar.DateComboBox
+                {
+                    Layout.fillWidth: true
+                    displayText: taskIncidence.incidenceStartDateDisplay
+                    selectedDate: taskIncidence.incidenceStart
+                    onDatePicked: function(date) { taskIncidence.setIncidenceStartDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
+                }
+
+                ToolButton
+                {
+                    icon.name: "edit-clear-all"
+                    ToolTip.text: i18n("Clear start date")
+                    onClicked: {
+                        const due = taskIncidence.incidenceEnd
+                        taskIncidence.incidenceStart = new Date(NaN)
+                        if (due && due.getTime() >= 0) taskIncidence.incidenceEnd = due
+                    }
+                }
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Due date")
+
+            RowLayout
+            {
+                MauiCalendar.DateComboBox
+                {
+                    Layout.fillWidth: true
+                    displayText: taskIncidence.incidenceEndDateDisplay
+                    selectedDate: taskIncidence.incidenceEnd
+                    onDatePicked: function(date) { taskIncidence.setIncidenceEndDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
+                }
+
+                ToolButton
+                {
+                    icon.name: "edit-clear-all"
+                    ToolTip.text: i18n("Clear due date")
+                    onClicked: taskIncidence.incidenceEnd = new Date(NaN)
+                }
+            }
+        }
+
+        CheckBox
+        {
+            text: i18n("All day")
+            enabled: !taskIncidence.todoCompleted && ((taskIncidence.incidenceStart && taskIncidence.incidenceStart.getTime() >= 0) || (taskIncidence.incidenceEnd && taskIncidence.incidenceEnd.getTime() >= 0))
+            checked: taskIncidence.allDay
+            onToggled: taskIncidence.allDay = checked
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Start time")
+            enabled: taskIncidence.incidenceStart && taskIncidence.incidenceStart.getTime() >= 0 && !taskIncidence.allDay
+
+            MauiCalendar.TimeComboBox
+            {
+                Layout.fillWidth: true
+                timeZoneOffset: taskIncidence.startTimeZoneUTCOffsetMins
+                selectedTime: taskIncidence.incidenceStart
+                onTimePicked: function(time) { taskIncidence.setIncidenceStartTime(time.getHours(), time.getMinutes()) }
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Due time")
+            enabled: taskIncidence.incidenceEnd && taskIncidence.incidenceEnd.getTime() >= 0 && !taskIncidence.allDay
+
+            MauiCalendar.TimeComboBox
+            {
+                Layout.fillWidth: true
+                timeZoneOffset: taskIncidence.endTimeZoneUTCOffsetMins
+                selectedTime: taskIncidence.incidenceEnd
+                onTimePicked: function(time) { taskIncidence.setIncidenceEndTime(time.getHours(), time.getMinutes()) }
+            }
+        }
+
+        Label
+        {
+            Layout.fillWidth: true
+            visible: taskIncidence.incidenceStart && taskIncidence.incidenceStart.getTime() >= 0 && taskIncidence.incidenceEnd && taskIncidence.incidenceEnd.getTime() >= 0 && (taskIncidence.allDay ? taskIncidence.incidenceStart.toDateString() !== taskIncidence.incidenceEnd.toDateString() : taskIncidence.incidenceEnd < taskIncidence.incidenceStart)
+            text: taskIncidence.allDay ? i18n("For an all-day task, the start and due dates must match.") : i18n("The due date and time must not be earlier than the start.")
+            color: Maui.Theme.negativeTextColor
+            wrapMode: Text.WordWrap
+        }
+
+        Maui.TextField
+        {
+            Layout.fillWidth: true
+            Maui.Controls.title: i18n("Location")
+            text: taskIncidence.location
+            onTextEdited: taskIncidence.location = text
+        }
+
+        Maui.TextField
+        {
+            Layout.fillWidth: true
+            Maui.Controls.title: i18n("Notes")
+            text: taskIncidence.description
+            onTextEdited: taskIncidence.description = text
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Reminders")
+            enabled: taskIncidence.incidenceStart && taskIncidence.incidenceStart.getTime() >= 0 && !taskIncidence.todoCompleted
+
+            Repeater
+            {
+                model: taskIncidence.reminders
+
+                delegate: ColumnLayout
+                {
+                    required property var modelData
+                    required property int index
+                    Layout.fillWidth: true
+
+                    RowLayout
+                    {
+                        Layout.fillWidth: true
+
+                        ComboBox
+                        {
+                            Layout.fillWidth: true
+                            model: [i18n("Before task"), i18n("At a specific time")]
+                            currentIndex: modelData.absolute ? 1 : 0
+                            onActivated: function(selection)
+                            {
+                                if (selection === 0)
+                                    taskIncidence.setReminderMinutesAt(index, modelData.minutes > 0 ? modelData.minutes : 10)
+                                else
+                                    taskIncidence.setReminderTimeAt(index, modelData.time && modelData.time.getTime() > 0 ? modelData.time : taskIncidence.incidenceStart)
+                            }
+                        }
+
+                        ComboBox
+                        {
+                            Layout.fillWidth: true
+                            visible: !modelData.absolute
+                            model: [i18n("5 minutes before"), i18n("10 minutes before"), i18n("15 minutes before"), i18n("30 minutes before"), i18n("1 hour before"), i18n("1 day before")]
+                            property var reminderMinutes: [5, 10, 15, 30, 60, 1440]
+                            currentIndex: {
+                                const position = reminderMinutes.indexOf(modelData.minutes)
+                                return position >= 0 ? position : 1
+                            }
+                            onActivated: function(selection) { taskIncidence.setReminderMinutesAt(index, reminderMinutes[selection]) }
+                        }
+
+                        ToolButton
+                        {
+                            icon.name: "edit-delete"
+                            onClicked: taskIncidence.removeReminderAt(index)
+                        }
+                    }
+
+                    RowLayout
+                    {
+                        Layout.fillWidth: true
+                        visible: modelData.absolute
+
+                        MauiCalendar.DateComboBox
+                        {
+                            Layout.fillWidth: true
+                            displayText: modelData.time && modelData.time.getTime() > 0 ? Qt.formatDate(modelData.time, "dd/MM/yyyy") : ""
+                            selectedDate: modelData.time
+                            onDatePicked: function(date)
+                            {
+                                const current = modelData.time && modelData.time.getTime() > 0 ? modelData.time : taskIncidence.incidenceStart
+                                taskIncidence.setReminderTimeAt(index, new Date(date.getFullYear(), date.getMonth(), date.getDate(), current.getHours(), current.getMinutes()))
+                            }
+                        }
+
+                        MauiCalendar.TimeComboBox
+                        {
+                            Layout.fillWidth: true
+                            timeZoneOffset: taskIncidence.startTimeZoneUTCOffsetMins
+                            visible: !taskIncidence.allDay
+                            displayText: modelData.time && modelData.time.getTime() > 0 ? Qt.formatTime(modelData.time, "HH:mm") : ""
+                            selectedTime: modelData.time
+                            onTimePicked: function(time)
+                            {
+                                const current = modelData.time && modelData.time.getTime() > 0 ? modelData.time : taskIncidence.incidenceStart
+                                taskIncidence.setReminderTimeAt(index, new Date(current.getFullYear(), current.getMonth(), current.getDate(), time.getHours(), time.getMinutes()))
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Add reminder")
+                onClicked: taskIncidence.addReminderMinutes(10)
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Priority")
+
+            SpinBox
+            {
+                Layout.fillWidth: true
+                from: 0
+                to: 9
+                value: taskIncidence.priority
+                onValueModified: taskIncidence.priority = value
+            }
+        }
+
+        CheckBox
+        {
+            visible: taskDialog.editing
+            text: i18n("Completed")
+            checked: taskIncidence.todoCompleted
+            onToggled: taskIncidence.todoCompleted = checked
+        }
+    }
+
     Maui.SideBarView
     {
         id: sideBarView
@@ -1304,8 +1791,8 @@ Maui.ApplicationWindow
                     ToolTip.delay: 1000
                     ToolTip.timeout: 5000
                     ToolTip.visible: hovered
-                    ToolTip.text: i18n("New event")
-                    onClicked: root.openNewEvent()
+                    ToolTip.text: root.currentView === 5 ? i18n("New task") : i18n("New event")
+                    onClicked: root.currentView === 5 ? root.openNewTask() : root.openNewEvent()
                 },
                 ToolSeparator
                 {
@@ -1364,7 +1851,7 @@ Maui.ApplicationWindow
                 anchors.leftMargin: Maui.Style.contentMargins
                 anchors.rightMargin: Maui.Style.contentMargins
                 anchors.bottomMargin: Maui.Style.contentMargins
-                sourceComponent: root.currentView === 0 ? yearView : root.currentView === 1 ? monthView : root.currentView === 2 ? weekView : root.currentView === 3 ? dayView : agendaView
+                sourceComponent: root.currentView === 0 ? yearView : root.currentView === 1 ? monthView : root.currentView === 2 ? weekView : root.currentView === 3 ? dayView : root.currentView === 4 ? agendaView : tasksView
             }
 
             Pane
@@ -1651,6 +2138,9 @@ Maui.ApplicationWindow
                 eventDialog.openNew(date)
             }
 
+            onIncidenceClicked: function(incidence, occurrence) { eventDialog.openExisting(incidence, occurrence) }
+            onMoreEventsClicked: function(date) { root.selectDate(date); root.currentView = 3 }
+
             Component.onCompleted: setToDate(root.currentDate)
 
             Connections
@@ -1669,109 +2159,23 @@ Maui.ApplicationWindow
     {
         id: weekView
 
-        Flickable
+        MauiCalendar.WeekView
         {
-            id: weekFlickable
-            contentWidth: width
-            contentHeight: Math.max(height, weekLayout.implicitHeight)
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
+            selectedDate: root.currentDate
+            workWeek: root.workWeek
+            filter: MauiCalendar.Filter
 
-            ColumnLayout
+            onIncidenceActivated: function(incidence, occurrence) { eventDialog.openExisting(incidence, occurrence) }
+            onTimeSlotActivated: function(date)
             {
-                id: weekLayout
-                width: parent.width
-                height: Math.max(weekFlickable.height, implicitHeight)
-                spacing: Maui.Style.space.medium
+                root.selectDate(date)
+                eventDialog.openNewAt(date)
+            }
 
-                Maui.SectionHeader
-                {
-                    Layout.fillWidth: true
-                    property date firstDay: root.weekStart(root.currentDate)
-                    text1: i18n("Week")
-                    text2: Qt.formatDate(firstDay, "d MMM") + " – " + Qt.formatDate(new Date(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate() + (root.workWeek ? 4 : 6)), "d MMM yyyy")
-                }
-
-                GridLayout
-                {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    columns: root.workWeek ? 5 : 7
-                    columnSpacing: Maui.Style.space.small
-
-                    Repeater
-                    {
-                        model: root.workWeek ? 5 : 7
-
-                        delegate: Pane
-                        {
-                            id: weekDay
-                            required property int index
-                            property date dayDate: new Date(root.weekStart(root.currentDate).getFullYear(), root.weekStart(root.currentDate).getMonth(), root.weekStart(root.currentDate).getDate() + index)
-
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.minimumHeight: Maui.Style.units.gridUnit * 12
-                            padding: Maui.Style.space.small
-                            background: Rectangle
-                            {
-                                radius: Maui.Style.radiusV
-                                color: Maui.Theme.alternateBackgroundColor
-                            }
-
-                            MauiCalendar.IncidenceOccurrenceModel
-                            {
-                                id: dayEvents
-                                start: weekDay.dayDate
-                                length: 1
-                                filter: MauiCalendar.Filter
-                            }
-
-                            ColumnLayout
-                            {
-                                anchors.fill: parent
-                                spacing: Maui.Style.space.small
-
-                                Label
-                                {
-                                    Layout.fillWidth: true
-                                    text: Qt.formatDate(weekDay.dayDate, "ddd d")
-                                    font.weight: Font.DemiBold
-                                }
-
-                                ListView
-                                {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    clip: true
-                                    spacing: Maui.Style.space.small
-                                    model: dayEvents
-
-                                    delegate: Maui.ListDelegate
-                                    {
-                                        width: ListView.view.width
-                                        label: model.summary
-                                        iconName: model.allDay ? "view-calendar-day" : "appointment-new"
-                                        iconVisible: true
-                                        iconSize: Maui.Style.iconSize
-                                        onClicked: eventDialog.openExisting(model.incidencePtr, model.startTime)
-                                    }
-                                }
-
-                                Button
-                                {
-                                    Layout.fillWidth: true
-                                    text: i18n("Add event")
-                                    onClicked:
-                                    {
-                                        root.selectDate(weekDay.dayDate)
-                                        eventDialog.openNew(weekDay.dayDate)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            onDateActivated: function(date)
+            {
+                root.selectDate(date)
+                eventDialog.openNew(date)
             }
         }
     }
@@ -1825,44 +2229,80 @@ Maui.ApplicationWindow
     {
         id: dayView
 
+        MauiCalendar.DayView
+        {
+            selectedDate: root.currentDate
+            filter: MauiCalendar.Filter
+
+            onIncidenceActivated: function(incidence, occurrence) { eventDialog.openExisting(incidence, occurrence) }
+            onTimeSlotActivated: function(date)
+            {
+                root.selectDate(date)
+                eventDialog.openNewAt(date)
+            }
+
+            onDateActivated: function(date)
+            {
+                root.selectDate(date)
+                eventDialog.openNew(date)
+            }
+        }
+    }
+
+    Component
+    {
+        id: tasksView
+
         ColumnLayout
         {
             spacing: Maui.Style.space.medium
 
-            MauiCalendar.IncidenceOccurrenceModel
-            {
-                id: dayEvents
-                start: root.currentDate
-                length: 1
-                filter: MauiCalendar.Filter
-            }
-
             Maui.SectionHeader
             {
                 Layout.fillWidth: true
-                text1: Qt.formatDate(root.currentDate, "dddd, d MMMM yyyy")
-                text2: i18n("Events")
+                text1: i18n("Tasks")
+                text2: i18n("Open and completed tasks")
             }
 
             Maui.ListBrowser
             {
-                background: null
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                model: dayEvents
+                background: null
+                model: root.taskItems
                 holder.visible: count === 0
-                holder.emoji: "view-calendar-day"
-                holder.title: i18n("No events")
-                holder.body: i18n("Create an event for this day to see it here.")
+                holder.emoji: "view-task"
+                holder.title: i18n("No tasks")
+                holder.body: i18n("Create a task to keep track of things to do.")
 
                 delegate: Maui.ListBrowserDelegate
                 {
+                    required property var modelData
                     width: ListView.view.width
-                    label1.text: model.summary
-                    label2.text: model.allDay ? i18n("All day") : model.startTime.toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
-                    onClicked: eventDialog.openExisting(model.incidencePtr, model.startTime)
+                    label1.text: modelData.summary
+                    label1.font.strikeout: modelData.completed
+                    label2.text: modelData.endTime && modelData.endTime.getTime() >= 0 ? Qt.formatDate(modelData.endTime, "ddd, d MMM yyyy") : i18n("No due date")
+                    label3.text: modelData.priority > 0 ? i18n("Priority %1", modelData.priority) : ""
+                    label3.visible: modelData.priority > 0
+                    iconSource: "view-task"
+                    onClicked: taskDialog.openExisting(modelData.incidencePtr)
+
+                    CheckBox
+                    {
+                        checked: modelData.completed
+                        enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(modelData.collectionId)
+                        onToggled: root.setTaskCompleted(modelData, checked)
+                    }
+
+                    ToolButton
+                    {
+                        icon.name: "edit-delete"
+                        enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(modelData.collectionId)
+                        onClicked: MauiCalendar.CalendarManager.deleteIncidence(modelData.incidencePtr)
+                    }
                 }
             }
         }
     }
+
 }

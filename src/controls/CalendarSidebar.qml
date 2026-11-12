@@ -19,7 +19,7 @@ Pane
 
     function viewLabel(view)
     {
-        return [i18n("Year"), i18n("Month"), i18n("Week"), i18n("Day"), i18n("Schedule")][view]
+        return [i18n("Year"), i18n("Month"), i18n("Week"), i18n("Day"), i18n("Schedule"), i18n("Tasks")][view]
     }
 
     ListModel
@@ -31,6 +31,7 @@ Pane
         ListElement { view: 2; icon: "view-calendar" }
         ListElement { view: 3; icon: "view-calendar-day" }
         ListElement { view: 4; icon: "view-list-details" }
+        ListElement { view: 5; icon: "view-task" }
     }
 
     padding: 0
