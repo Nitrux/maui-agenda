@@ -25,7 +25,7 @@ ColumnLayout
     Maui.SectionHeader
     {
         Layout.fillWidth: true
-        text1: i18n("Schedule")
+        text1: i18n("Agenda")
         text2: i18n("The next 31 days")
     }
 

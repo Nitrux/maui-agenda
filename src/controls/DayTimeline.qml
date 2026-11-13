@@ -11,6 +11,7 @@ Item
 
     property date startDate: new Date()
     property int dayCount: 1
+    property bool tableRules: false
     property var filter: MauiCalendar.Filter
     property date currentTime: new Date()
 
@@ -35,6 +36,7 @@ Item
 
     Flickable
     {
+        id: timelineFlickable
         anchors.fill: parent
         contentWidth: Math.max(width, control.gutterWidth + control.dayCount * control.minimumDayWidth)
         contentHeight: timeline.implicitHeight
@@ -64,7 +66,7 @@ Item
                         delegate: Label
                         {
                             required property int index
-                            y: control.timelineOffset + index * control.hourHeight - height / 2
+                            y: control.timelineOffset + (control.tableRules && index < 24 ? index + 0.5 : index) * control.hourHeight - height / 2
                             width: parent.width - Maui.Style.space.small
                             height: Maui.Style.rowHeight
                             text: index === 24 ? "24:00" : Qt.formatTime(new Date(2000, 0, 1, index), "HH:mm")
@@ -86,7 +88,7 @@ Item
                         Layout.fillWidth: true
                         Layout.minimumWidth: control.minimumDayWidth
                         Layout.preferredHeight: control.timelineHeight
-                        clip: true
+                        clip: control.dayCount === 1
 
                         property date dayDate: new Date(control.startDate.getFullYear(), control.startDate.getMonth(), control.startDate.getDate() + index)
                         readonly property bool isToday: Qt.formatDate(dayDate, "yyyyMMdd") === Qt.formatDate(control.currentTime, "yyyyMMdd")
@@ -95,9 +97,9 @@ Item
                         {
                             id: currentTimeLine
                             visible: dayColumn.isToday
-                            x: control.ruleInset
-                            y: control.timelineOffset + (control.currentTime.getHours() + control.currentTime.getMinutes() / 60 + control.currentTime.getSeconds() / 3600) * control.hourHeight
-                            width: parent.width - 2 * control.ruleInset
+                            x: control.dayCount === 1 ? control.ruleInset : -dayColumn.index * dayColumn.width
+                            y: Math.round(control.timelineOffset + (control.currentTime.getHours() + control.currentTime.getMinutes() / 60 + control.currentTime.getSeconds() / 3600) * control.hourHeight - timelineFlickable.contentY) + timelineFlickable.contentY
+                            width: control.dayCount === 1 ? parent.width - 2 * control.ruleInset : dayColumn.width * control.dayCount
                             height: 0
                             z: 10
 
@@ -203,13 +205,34 @@ Item
                             delegate: Rectangle
                             {
                                 required property int index
-                                x: control.ruleInset
-                                width: parent.width - 2 * control.ruleInset
+                                x: control.tableRules ? 0 : control.ruleInset
+                                width: control.tableRules ? parent.width : parent.width - 2 * control.ruleInset
                                 height: Maui.Style.space.tiny / 4
                                 y: Math.round(control.timelineOffset + index * control.hourHeight - height / 2)
-                                color: Qt.alpha(Maui.Theme.textColor, 0.35)
+                                color: Qt.darker(Maui.Theme.textColor, 2.2)
                                 z: 3
                             }
+                        }
+
+                        Rectangle
+                        {
+                            visible: control.tableRules
+                            y: control.tableRules ? control.timelineOffset : 0
+                            width: Maui.Style.space.tiny / 4
+                            height: control.tableRules ? 24 * control.hourHeight : parent.height
+                            color: Qt.darker(Maui.Theme.textColor, 2.2)
+                            z: 3
+                        }
+
+                        Rectangle
+                        {
+                            visible: control.tableRules && dayColumn.index === control.dayCount - 1
+                            x: parent.width - width
+                            y: control.tableRules ? control.timelineOffset : 0
+                            width: Maui.Style.space.tiny / 4
+                            height: control.tableRules ? 24 * control.hourHeight : parent.height
+                            color: Qt.darker(Maui.Theme.textColor, 2.2)
+                            z: 3
                         }
 
                         Repeater

@@ -28,9 +28,14 @@ Maui.ApplicationWindow
         if (currentView === 2)
             return Qt.formatDate(currentDate, "MMMM yyyy")
         if (currentView === 3)
-            return i18n("Week of %1", Qt.formatDate(weekStart(currentDate), "dd/MM/yyyy"))
+        {
+            const start = weekStart(currentDate)
+            const end = new Date(start)
+            end.setDate(end.getDate() + 6)
+            return i18n("Week of %1 to %2", Qt.formatDate(start, "MMMM d"), Qt.formatDate(end, "MMMM d, yyyy"))
+        }
         if (currentView === 4)
-            return i18n("Schedule")
+            return i18n("Agenda")
         if (currentView === 5)
             return i18n("Tasks")
         return Qt.formatDate(currentDate, "dd/MM/yyyy")
@@ -220,8 +225,6 @@ Maui.ApplicationWindow
 
             readonly property list<Action> floatingActions: {
                 const actions = [importCalendarAction, exportCalendarAction, subscribeCalendarAction, newCalendarAction]
-                if (root.currentView === 3)
-                    actions.push(workWeekAction)
                 return actions
             }
 
@@ -577,6 +580,7 @@ Maui.ApplicationWindow
             selectedDate: root.currentDate
             viewTitle: root.currentViewTitle
             workWeek: root.workWeek
+            onDateSelected: function(date) { root.selectDate(date) }
             onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
             onTimeSlotActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEventAt(date) }
             onDateActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }

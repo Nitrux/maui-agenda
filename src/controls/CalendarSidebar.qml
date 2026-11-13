@@ -19,7 +19,17 @@ Pane
 
     function viewLabel(view)
     {
-        return [i18n("Year"), i18n("Day"), i18n("Month"), i18n("Week"), i18n("Schedule"), i18n("Tasks")][view]
+        return [i18n("Year"), i18n("Day"), i18n("Month"), i18n("Week"), i18n("Agenda"), i18n("Tasks")][view]
+    }
+
+    function viewIndex(view)
+    {
+        for (let index = 0; index < calendarViews.count; ++index)
+        {
+            if (calendarViews.get(index).view === view)
+                return index
+        }
+        return -1
     }
 
     ListModel
@@ -28,8 +38,8 @@ Pane
 
         ListElement { view: 0; icon: "view-calendar" }
         ListElement { view: 1; icon: "view-calendar-day" }
-        ListElement { view: 2; icon: "view-calendar" }
         ListElement { view: 3; icon: "view-calendar" }
+        ListElement { view: 2; icon: "view-calendar" }
         ListElement { view: 4; icon: "view-list-details" }
         ListElement { view: 5; icon: "view-task" }
     }
@@ -99,7 +109,7 @@ Pane
         focus: false
         focusPolicy: Qt.NoFocus
         Keys.enabled: false
-        currentIndex: control.currentView
+        currentIndex: control.viewIndex(control.currentView)
 
         flickable.header: Maui.SectionHeader
         {
@@ -124,11 +134,7 @@ Pane
             iconSize: Maui.Style.iconSize
             isCurrentItem: view === control.currentView
 
-            onClicked:
-            {
-                listBrowser.currentIndex = view
-                control.viewSelected(view)
-            }
+            onClicked: control.viewSelected(view)
         }
     }
 
@@ -175,5 +181,4 @@ Pane
         }
     }
 
-    onCurrentViewChanged: listBrowser.currentIndex = currentView
 }
