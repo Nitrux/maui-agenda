@@ -106,10 +106,10 @@ Item
                                 id: currentTimeDot
                                 x: 0
                                 y: -height / 2
-                                width: Maui.Style.iconSize / 3
+                                width: Maui.Style.iconSize / 3 + Maui.Style.space.small / 2
                                 height: width
                                 radius: width / 2
-                                color: "#f2b8b8"
+                                color: Maui.Theme.negativeBackgroundColor
                             }
 
                             Rectangle
@@ -118,7 +118,7 @@ Item
                                 y: -height / 2
                                 width: parent.width - currentTimeDot.width
                                 height: Maui.Style.units.gridUnit / 8
-                                color: "#f2b8b8"
+                                color: Maui.Theme.negativeBackgroundColor
                             }
                         }
 
@@ -205,7 +205,7 @@ Item
                                 required property int index
                                 x: control.ruleInset
                                 width: parent.width - 2 * control.ruleInset
-                                height: Maui.Style.space.tiny / 2
+                                height: Maui.Style.space.tiny / 4
                                 y: Math.round(control.timelineOffset + index * control.hourHeight - height / 2)
                                 color: Qt.alpha(Maui.Theme.textColor, 0.35)
                                 z: 3
