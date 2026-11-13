@@ -26,9 +26,12 @@ Item
     signal timeSlotActivated(var date)
     signal dateActivated(var date)
 
-    readonly property real hourHeight: Maui.Style.units.gridUnit * 3
+    readonly property real hourHeight: Maui.Style.units.gridUnit * 4
     readonly property real gutterWidth: Maui.Style.units.gridUnit * 4
     readonly property real minimumDayWidth: Maui.Style.units.gridUnit * 8
+    readonly property real ruleInset: Maui.Style.space.small
+    readonly property real timelineOffset: Maui.Style.rowHeight / 2
+    readonly property real timelineHeight: 24 * hourHeight + 2 * timelineOffset
 
     Flickable
     {
@@ -52,7 +55,7 @@ Item
                 Item
                 {
                     Layout.preferredWidth: control.gutterWidth
-                    Layout.preferredHeight: 24 * control.hourHeight + Maui.Style.rowHeight / 2
+                    Layout.preferredHeight: control.timelineHeight
 
                     Repeater
                     {
@@ -61,11 +64,13 @@ Item
                         delegate: Label
                         {
                             required property int index
-                            y: index * control.hourHeight - implicitHeight / 2
-                            width: parent.width
+                            y: control.timelineOffset + index * control.hourHeight - height / 2
+                            width: parent.width - Maui.Style.space.small
+                            height: Maui.Style.rowHeight
                             text: index === 24 ? "24:00" : Qt.formatTime(new Date(2000, 0, 1, index), "HH:mm")
                             horizontalAlignment: Text.AlignRight
-                            color: Maui.Theme.textColor
+                            verticalAlignment: Text.AlignVCenter
+                            color: Qt.alpha(Maui.Theme.textColor, 0.75)
                         }
                     }
                 }
@@ -80,41 +85,39 @@ Item
                         required property int index
                         Layout.fillWidth: true
                         Layout.minimumWidth: control.minimumDayWidth
-                        Layout.preferredHeight: 24 * control.hourHeight
+                        Layout.preferredHeight: control.timelineHeight
                         clip: true
-
-                        Rectangle
-                        {
-                            anchors.left: parent.left
-                            height: parent.height
-                            width: Maui.Style.units.smallSpacing / 2
-                            color: Qt.alpha(Maui.Theme.textColor, 0.28)
-                            z: 1
-                        }
 
                         property date dayDate: new Date(control.startDate.getFullYear(), control.startDate.getMonth(), control.startDate.getDate() + index)
                         readonly property bool isToday: Qt.formatDate(dayDate, "yyyyMMdd") === Qt.formatDate(control.currentTime, "yyyyMMdd")
 
-                        Rectangle
+                        Item
                         {
                             id: currentTimeLine
                             visible: dayColumn.isToday
-                            x: currentTimeDot.width / 2
-                            y: (control.currentTime.getHours() + control.currentTime.getMinutes() / 60 + control.currentTime.getSeconds() / 3600) * control.hourHeight
-                            width: parent.width - currentTimeDot.width / 2
-                            height: Maui.Style.units.smallSpacing / 2
-                            color: "#f2b8b8"
-                            z: 3
+                            x: control.ruleInset
+                            y: control.timelineOffset + (control.currentTime.getHours() + control.currentTime.getMinutes() / 60 + control.currentTime.getSeconds() / 3600) * control.hourHeight
+                            width: parent.width - 2 * control.ruleInset
+                            height: 0
+                            z: 10
 
                             Rectangle
                             {
                                 id: currentTimeDot
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                x: -width / 2
+                                x: 0
+                                y: -height / 2
                                 width: Maui.Style.iconSize / 3
                                 height: width
                                 radius: width / 2
+                                color: "#f2b8b8"
+                            }
+
+                            Rectangle
+                            {
+                                x: currentTimeDot.width
+                                y: -height / 2
+                                width: parent.width - currentTimeDot.width
+                                height: Maui.Style.units.gridUnit / 8
                                 color: "#f2b8b8"
                             }
                         }
@@ -152,7 +155,7 @@ Item
                                     anchors.fill: parent
                                     color: Qt.alpha(allDayBackground.color, 0.10)
                                     border.color: Qt.alpha(allDayBackground.color, 0.48)
-                                    border.width: Maui.Style.units.smallSpacing / 4
+                                    border.width: Maui.Style.space.tiny / 4
                                 }
                             }
                         }
@@ -186,7 +189,7 @@ Item
                                     {
                                         color: Qt.alpha(allDayLabel.color, 0.24)
                                         border.color: allDayLabel.color
-                                        border.width: Maui.Style.units.smallSpacing / 4
+                                        border.width: Maui.Style.space.tiny / 4
                                     }
                                     onClicked: control.incidenceActivated(incidencePtr, startTime)
                                 }
@@ -195,15 +198,17 @@ Item
 
                         Repeater
                         {
-                            model: 24
+                            model: 25
 
                             delegate: Rectangle
                             {
                                 required property int index
-                                y: index * control.hourHeight
-                                width: parent.width
-                                height: Maui.Style.units.smallSpacing / 2
-                                color: Qt.alpha(Maui.Theme.textColor, 0.28)
+                                x: control.ruleInset
+                                width: parent.width - 2 * control.ruleInset
+                                height: Maui.Style.space.tiny / 2
+                                y: Math.round(control.timelineOffset + index * control.hourHeight - height / 2)
+                                color: Qt.alpha(Maui.Theme.textColor, 0.35)
+                                z: 3
                             }
                         }
 
@@ -224,8 +229,9 @@ Item
                                     delegate: Rectangle
                                     {
                                         required property var modelData
+                                        z: 4
                                         x: parent.width * Number(modelData.priorTakenWidthShare || 0)
-                                        y: Number(modelData.starts) * control.hourHeight / 4
+                                        y: control.timelineOffset + Number(modelData.starts) * control.hourHeight / 4
                                         width: parent.width * Number(modelData.widthShare || 1)
                                         height: Math.max(Maui.Style.units.gridUnit * 1.5, Number(modelData.duration) * control.hourHeight / 4)
                                         visible: !modelData.allDay
@@ -233,7 +239,7 @@ Item
                                         radius: Maui.Style.radiusV
                                         color: Qt.alpha(modelData.color, 0.28)
                                         border.color: modelData.color
-                                        border.width: Maui.Style.units.smallSpacing / 4
+                                        border.width: Maui.Style.space.tiny / 4
 
                                         Column
                                         {
@@ -275,7 +281,7 @@ Item
                             acceptedButtons: Qt.LeftButton
                             onDoubleClicked: function(mouse)
                             {
-                                const minutes = Math.floor(mouse.y / control.hourHeight * 4) * 15
+                                const minutes = Math.floor(Math.max(0, mouse.y - control.timelineOffset) / control.hourHeight * 4) * 15
                                 const date = new Date(dayColumn.dayDate.getFullYear(), dayColumn.dayDate.getMonth(), dayColumn.dayDate.getDate(), Math.floor(minutes / 60), minutes % 60)
                                 control.timeSlotActivated(date)
                             }

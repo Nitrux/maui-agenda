@@ -106,6 +106,7 @@ Pane
             width: listBrowser.availableWidth
             text1: i18n("Views")
             label1.font.weight: Font.Bold
+            label1.font.pixelSize: 14
             label2.visible: false
         }
 
@@ -136,6 +137,7 @@ Pane
             Layout.fillWidth: true
             text1: i18n("Calendars")
             label1.font.weight: Font.Bold
+            label1.font.pixelSize: 14
             label2.visible: false
         }
 
