@@ -19,7 +19,7 @@ Pane
 
     function viewLabel(view)
     {
-        return [i18n("Year"), i18n("Month"), i18n("Week"), i18n("Day"), i18n("Schedule"), i18n("Tasks")][view]
+        return [i18n("Year"), i18n("Day"), i18n("Month"), i18n("Week"), i18n("Schedule"), i18n("Tasks")][view]
     }
 
     ListModel
@@ -27,9 +27,9 @@ Pane
         id: calendarViews
 
         ListElement { view: 0; icon: "view-calendar" }
-        ListElement { view: 1; icon: "view-calendar" }
+        ListElement { view: 1; icon: "view-calendar-day" }
         ListElement { view: 2; icon: "view-calendar" }
-        ListElement { view: 3; icon: "view-calendar-day" }
+        ListElement { view: 3; icon: "view-calendar" }
         ListElement { view: 4; icon: "view-list-details" }
         ListElement { view: 5; icon: "view-task" }
     }
@@ -144,6 +144,8 @@ Pane
             id: calendarList
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.leftMargin: Maui.Style.contentMargins
+            Layout.rightMargin: Maui.Style.contentMargins
             clip: true
             model: MauiCalendar.CalendarManager.collections
             delegate: Maui.ListDelegate

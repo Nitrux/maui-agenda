@@ -11,15 +11,24 @@ set(project_SRCS
 qt_add_executable(${PROJECT_NAME}
     ${project_SRCS})
 
-qt_policy(SET QTP0001 OLD) # keep :/app/maui/agenda/ resource prefix
-qt_policy(SET QTP0004 OLD) # no qmldir required for subdirectories
+qt_policy(SET QTP0001 NEW)
+qt_policy(SET QTP0004 NEW)
 
 qt_add_qml_module(${PROJECT_NAME} URI app.maui.agenda
     NO_PLUGIN
+    RESOURCE_PREFIX /
     NO_IMPORT_SCAN
     QML_FILES
     controls/main.qml
-    controls/CalendarSidebar.qml)
+    controls/CalendarSidebar.qml
+    controls/AgendaDialogs.qml
+    controls/YearView.qml
+    controls/MonthView.qml
+    controls/WeekView.qml
+    controls/AgendaView.qml
+    controls/DayView.qml
+    controls/DayTimeline.qml
+    controls/TasksView.qml)
 
 target_compile_options(${PROJECT_NAME} PRIVATE -Wno-missing-include-dirs)
 
