@@ -529,7 +529,6 @@ Maui.ApplicationWindow
         target: MauiCalendar.CalendarManager
         function onCalendarChanged()
         {
-            console.log("[Agenda] CalendarManager calendarChanged emitted")
             root.refreshTaskItems()
         }
         function onCaldavPermissionsChanged()
@@ -682,7 +681,6 @@ Maui.ApplicationWindow
             {
                 if (!eventDialog.editing && !eventDialog.allDayChoiceMade)
                     eventIncidence.allDay = false
-                console.log("[Agenda] event save triggered", "editing:", eventDialog.editing, "title:", eventIncidence.summary, "collectionId:", eventIncidence.collectionId, "start:", eventIncidence.incidenceStart.toString(), "end:", eventIncidence.incidenceEnd.toString(), "allDay:", eventIncidence.allDay)
                 if (eventDialog.editing)
                 {
                     if (eventDialog.occurrenceStart !== null)
@@ -699,7 +697,6 @@ Maui.ApplicationWindow
                         root.currentView = 3
                     }
                 }
-                console.log("[Agenda] event save request dispatched")
                 eventDialog.close()
             }
         }
