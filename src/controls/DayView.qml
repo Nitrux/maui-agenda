@@ -11,6 +11,8 @@ ColumnLayout
     required property date selectedDate
     required property string viewTitle
     signal incidenceActivated(var incidence, var occurrence)
+    signal eventContextRequested(var incidence, var occurrence, bool recurring, int collectionId, var anchor, real x, real y)
+    signal dateContextRequested(date date, var anchor, real x, real y)
     signal timeSlotActivated(date date)
     signal dateActivated(date date)
 
@@ -47,6 +49,8 @@ ColumnLayout
                 startDate: control.selectedDate
                 filter: MauiCalendar.Filter
                 onIncidenceActivated: function(incidence, occurrence) { control.incidenceActivated(incidence, occurrence) }
+            onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { control.eventContextRequested(incidence, occurrence, recurring, collectionId, anchor, x, y) }
+            onTimeContextRequested: function(date, anchor, x, y) { control.dateContextRequested(date, anchor, x, y) }
                 onTimeSlotActivated: function(date) { control.timeSlotActivated(date) }
                 onDateActivated: function(date) { control.dateActivated(date) }
             }

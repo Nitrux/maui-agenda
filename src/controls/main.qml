@@ -19,6 +19,8 @@ Maui.ApplicationWindow
     property int currentView: 0
     property date currentDate: new Date()
     property bool workWeek: agendaSettings.workWeek
+    property bool searchActive: false
+    property string searchQuery: ""
     property var taskItems: []
     readonly property string currentViewTitle: {
         if (currentView === 0)
@@ -74,6 +76,9 @@ Maui.ApplicationWindow
 
     function changeDate(amount)
     {
+        if (root.currentView === 5)
+            return
+
         const next = new Date(root.currentDate)
         if (root.currentView === 0)
             next.setFullYear(next.getFullYear() + amount)
@@ -81,6 +86,8 @@ Maui.ApplicationWindow
             next.setMonth(next.getMonth() + amount)
         else if (root.currentView === 3)
             next.setDate(next.getDate() + (amount * 7))
+        else if (root.currentView === 4)
+            next.setDate(next.getDate() + (amount * 31))
         else
             next.setDate(next.getDate() + amount)
         root.selectDate(next)
@@ -117,10 +124,14 @@ Maui.ApplicationWindow
         id: agendaDialogs
         currentDate: root.currentDate
         currentView: root.currentView
+        workWeek: root.workWeek
         availableHeight: root.height
         onSelectDateRequested: function(date) { root.selectDate(date) }
         onSelectViewRequested: function(view) { root.currentView = view }
         onRefreshTasksRequested: root.refreshTaskItems()
+        onTaskCompletionRequested: function(task, completed) { root.setTaskCompleted(task, completed) }
+        onTaskDeletionRequested: function(incidence) { MauiCalendar.CalendarManager.deleteIncidence(incidence); root.refreshTaskItems() }
+        onWorkWeekToggled: function(enabled) { agendaSettings.workWeek = enabled; root.workWeek = enabled }
     }
 
     Maui.WindowBlur
@@ -165,7 +176,7 @@ Maui.ApplicationWindow
                 hiddenCollectionIds: agendaSettings.hiddenCollectionIds
                 onCollectionVisibilityChanged: function(ids) { agendaSettings.hiddenCollectionIds = ids }
                 onCollectionPermissionsRequested: function(collectionId) { agendaDialogs.openPermissions(collectionId) }
-                onViewSelected: (view) => root.currentView = view
+                onViewSelected: (view) => { root.searchActive = false; root.currentView = view }
             }
         }
 
@@ -187,46 +198,28 @@ Maui.ApplicationWindow
         Maui.Page
         {
             id: mainPage
-            property Action importCalendarAction: Action
+            property Action createEventAction: Action
             {
-                text: i18n("Import calendar")
-                icon.name: "document-import"
-                onTriggered: agendaDialogs.openCalendarFile()
-            }
-
-            property Action exportCalendarAction: Action
-            {
-                text: i18n("Export calendar")
-                icon.name: "document-export"
-                onTriggered: agendaDialogs.saveCalendarFile()
-            }
-
-            property Action subscribeCalendarAction: Action
-            {
-                text: i18n("Subscribe calendar")
-                icon.name: "internet-services"
-                onTriggered: agendaDialogs.openSubscriptionDialog()
-            }
-
-            property Action newCalendarAction: Action
-            {
-                text: i18n("New calendar")
+                text: i18n("New event")
                 icon.name: "list-add"
-                onTriggered: agendaDialogs.openNewCalendarDialog()
+                onTriggered: root.openNewEvent()
             }
 
-            property Action workWeekAction: Action
+            property Action createTaskAction: Action
             {
-                text: i18n("Work week")
-                checkable: true
-                checked: root.workWeek
-                onTriggered: { agendaSettings.workWeek = checked; root.workWeek = checked }
+                text: i18n("New task")
+                icon.name: "view-task"
+                onTriggered: root.openNewTask()
             }
 
-            readonly property list<Action> floatingActions: {
-                const actions = [importCalendarAction, exportCalendarAction, subscribeCalendarAction, newCalendarAction]
-                return actions
+            property Action goToDateAction: Action
+            {
+                text: i18n("Go to date")
+                icon.name: "view-calendar"
+                onTriggered: agendaDialogs.openDateDialog()
             }
+
+            readonly property list<Action> floatingActions: root.currentView === 5 ? [createTaskAction, goToDateAction] : [createEventAction, goToDateAction]
 
             focus: true
             Keys.enabled: true
@@ -253,6 +246,14 @@ Maui.ApplicationWindow
             headerMargins: Maui.Style.contentMargins
             floatingHeader: false
             headBar.forceCenterMiddleContent: true
+            headBar.middleContent: Loader
+            {
+                active: root.searchActive
+                visible: active
+                Layout.fillWidth: true
+                sourceComponent: searchBarComponent
+                onLoaded: item.forceActiveFocus()
+            }
             headBar.preferredHeight: Maui.Style.rowHeightAlt
             headBar.topPadding: Maui.Style.defaultPadding
             headBar.bottomPadding: Maui.Style.defaultPadding
@@ -277,6 +278,7 @@ Maui.ApplicationWindow
                 },
                 Maui.ToolActions
                 {
+                    visible: root.currentView !== 5
                     checkable: false
                     display: ToolButton.IconOnly
 
@@ -299,6 +301,7 @@ Maui.ApplicationWindow
             headBar.rightContent: [
                 ToolButton
                 {
+                    visible: root.currentView !== 5
                     icon.name: "go-jump-today"
                     ToolTip.delay: 1000
                     ToolTip.timeout: 5000
@@ -308,12 +311,28 @@ Maui.ApplicationWindow
                 },
                 ToolButton
                 {
-                    icon.name: "list-add"
+                    icon.name: "edit-find"
                     ToolTip.delay: 1000
                     ToolTip.timeout: 5000
                     ToolTip.visible: hovered
-                    ToolTip.text: root.currentView === 5 ? i18n("New task") : i18n("New event")
-                    onClicked: root.currentView === 5 ? root.openNewTask() : root.openNewEvent()
+                    checkable: true
+                    checked: root.searchActive
+                    ToolTip.text: root.searchActive ? i18n("Close search") : i18n("Search")
+                    onClicked:
+                    {
+                        if (!root.searchActive)
+                            root.searchQuery = ""
+                        root.searchActive = !root.searchActive
+                    }
+                },
+                ToolButton
+                {
+                    icon.name: "view-refresh"
+                    ToolTip.delay: 1000
+                    ToolTip.timeout: 5000
+                    ToolTip.visible: hovered
+                    ToolTip.text: i18n("Synchronize calendars")
+                    onClicked: MauiCalendar.CalendarManager.syncAllCalDavAccounts()
                 },
                 ToolSeparator
                 {
@@ -327,31 +346,9 @@ Maui.ApplicationWindow
 
                     MenuItem
                     {
-                        text: i18n("Go to date")
+                        text: i18n("Manage calendars")
                         icon.name: "view-calendar"
-                        onTriggered: { agendaDialogs.openDateDialog() }
-                    }
-
-                    MenuItem
-                    {
-                        text: i18n("CalDAV accounts")
-                        icon.name: "network-server"
-                        onTriggered: agendaDialogs.openAccountsDialog()
-                    }
-
-                    MenuItem
-                    {
-                        text: i18n("Sync CalDAV")
-                        icon.name: "view-refresh"
-                        onTriggered: agendaDialogs.openCalDavDialog()
-                    }
-
-                    MenuItem
-                    {
-                        text: i18n("Work week")
-                        checkable: true
-                        checked: root.workWeek
-                        onTriggered: { agendaSettings.workWeek = checked; root.workWeek = checked }
+                        onTriggered: agendaDialogs.openCalendarManagement()
                     }
 
                     MenuSeparator {}
@@ -372,7 +369,7 @@ Maui.ApplicationWindow
                 anchors.leftMargin: Maui.Style.contentMargins
                 anchors.rightMargin: Maui.Style.contentMargins
                 anchors.bottomMargin: Maui.Style.contentMargins
-                sourceComponent: root.currentView === 0 ? yearView : root.currentView === 1 ? dayView : root.currentView === 2 ? monthView : root.currentView === 3 ? weekView : root.currentView === 4 ? agendaView : tasksView
+                sourceComponent: root.searchActive ? searchView : root.currentView === 0 ? yearView : root.currentView === 1 ? dayView : root.currentView === 2 ? monthView : root.currentView === 3 ? weekView : root.currentView === 4 ? agendaView : tasksView
             }
 
             Pane
@@ -501,6 +498,10 @@ Maui.ApplicationWindow
                                 action: modelData
                                 display: ToolButton.IconOnly
                                 flat: false
+                                ToolTip.delay: 1000
+                                ToolTip.timeout: 5000
+                                ToolTip.visible: hovered
+                                ToolTip.text: modelData.text
                                 icon.color: destructive ? "#fafafa" : floatingActionButton.color
 
                                 background: Rectangle
@@ -555,6 +556,7 @@ Maui.ApplicationWindow
             viewTitle: root.currentViewTitle
             onDateSelected: function(date) { root.selectDate(date) }
             onMonthSelected: function(date) { root.selectDate(date); root.currentView = 2 }
+            onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
     }
 
@@ -569,6 +571,8 @@ Maui.ApplicationWindow
             onDateDoubleClicked: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
             onIncidenceClicked: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
             onMoreEventsClicked: function(date) { root.selectDate(date); root.currentView = 1 }
+            onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
+            onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
     }
 
@@ -584,6 +588,8 @@ Maui.ApplicationWindow
             onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
             onTimeSlotActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEventAt(date) }
             onDateActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
+            onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
+            onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
     }
 
@@ -594,6 +600,8 @@ Maui.ApplicationWindow
         {
             currentDate: root.currentDate
             onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
+            onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
+            onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
     }
 
@@ -607,6 +615,8 @@ Maui.ApplicationWindow
             onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
             onTimeSlotActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEventAt(date) }
             onDateActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
+            onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
+            onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
     }
 
@@ -618,7 +628,41 @@ Maui.ApplicationWindow
             taskItems: root.taskItems
             onTaskActivated: function(incidence) { agendaDialogs.openExistingTask(incidence) }
             onCompletionRequested: function(task, completed) { root.setTaskCompleted(task, completed) }
-            onDeletionRequested: function(incidence) { MauiCalendar.CalendarManager.deleteIncidence(incidence) }
+            onDeletionRequested: function(incidence) { MauiCalendar.CalendarManager.deleteIncidence(incidence); root.refreshTaskItems() }
+            onTaskContextRequested: function(task, anchor, x, y) { agendaDialogs.showTaskContext(task, anchor, x, y) }
+        }
+    }
+
+    Component
+    {
+        id: searchView
+        SearchView
+        {
+            query: root.searchQuery
+            onIncidenceActivated: function(incidence, occurrence, isTask, hasDate)
+            {
+                root.searchActive = false
+                root.searchQuery = ""
+                if (isTask)
+                    agendaDialogs.openExistingTask(incidence)
+                else
+                {
+                    if (hasDate)
+                        root.selectDate(occurrence)
+                    agendaDialogs.openExistingEvent(incidence, occurrence)
+                }
+            }
+        }
+    }
+
+    Component
+    {
+        id: searchBarComponent
+        Maui.SearchField
+        {
+            placeholderText: i18n("Search events and tasks")
+            text: root.searchQuery
+            onTextChanged: root.searchQuery = text
         }
     }
 

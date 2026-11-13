@@ -22,9 +22,11 @@ qt_add_qml_module(${PROJECT_NAME} URI app.maui.agenda
     controls/main.qml
     controls/CalendarSidebar.qml
     controls/AgendaDialogs.qml
+    controls/SearchView.qml
     controls/YearView.qml
     controls/MonthView.qml
     controls/WeekView.qml
+    controls/WeekdayTabBar.qml
     controls/AgendaView.qml
     controls/DayView.qml
     controls/DayTimeline.qml

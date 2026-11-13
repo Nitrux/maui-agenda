@@ -15,11 +15,15 @@ Item
     anchors.fill: parent
     required property date currentDate
     required property int currentView
+    required property bool workWeek
     required property real availableHeight
 
     signal selectDateRequested(date date)
     signal selectViewRequested(int view)
     signal refreshTasksRequested()
+    signal taskCompletionRequested(var task, bool completed)
+    signal taskDeletionRequested(var incidence)
+    signal workWeekToggled(bool enabled)
 
     function openNewEvent(date) { eventDialog.openNew(date) }
     function openNewEventAt(date) { eventDialog.openNewAt(date) }
@@ -27,11 +31,67 @@ Item
     function openNewTask(date) { taskDialog.openNew(date) }
     function openExistingTask(incidence) { taskDialog.openExisting(incidence) }
     function openDateDialog() { dateDialog.pickedDate = root.currentDate; dateDialog.open() }
+    function openCalendarManagement() { calendarManagementDialog.open() }
     function openAccountsDialog() { caldavAccountsDialog.open() }
     function openSubscriptionDialog() { subscriptionDialog.open() }
     function openNewCalendarDialog() { newCalendarDialog.open() }
-    function openCalDavDialog() { caldavDialog.open() }
     function openPermissions(collectionId) { permissionsDialog.openForCollection(collectionId) }
+
+    function popupAt(menu, anchor, x, y)
+    {
+        const point = anchor.mapToItem(root, x, y)
+        menu.popup(point.x, point.y)
+    }
+
+    function showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y)
+    {
+        eventContextMenu.incidence = incidence
+        eventContextMenu.occurrence = occurrence
+        eventContextMenu.recurring = recurring
+        eventContextMenu.collectionId = collectionId
+        popupAt(eventContextMenu, anchor, x, y)
+    }
+
+    function showDateContext(date, anchor, x, y)
+    {
+        dayContextMenu.date = date
+        popupAt(dayContextMenu, anchor, x, y)
+    }
+
+    function showTaskContext(task, anchor, x, y)
+    {
+        taskContextMenu.task = task
+        popupAt(taskContextMenu, anchor, x, y)
+    }
+
+    function showAccountContext(account, anchor, x, y)
+    {
+        accountContextMenu.account = account
+        popupAt(accountContextMenu, anchor, x, y)
+    }
+
+    function requestRemoveAccount(account)
+    {
+        deleteConfirmation.pendingKind = "account"
+        deleteConfirmation.accountUrl = account.url
+        deleteConfirmation.open()
+    }
+
+    function editCalDavAccount(account)
+    {
+        caldavUrlField.text = account.url
+        caldavUsernameField.text = account.username
+        caldavAuthTypeField.currentIndex = account.authType === "bearer" ? 1 : 0
+        caldavTokenUrlField.text = account.tokenUrl || ""
+        caldavClientIdField.text = account.clientId || ""
+        caldavAuthorizationUrlField.text = account.authorizationUrl || ""
+        caldavPasswordField.clear()
+        caldavRefreshTokenField.clear()
+        caldavClientSecretField.clear()
+        caldavAutoSyncCheck.checked = account.enabled
+        caldavAccountsDialog.close()
+        caldavDialog.open()
+    }
 
     Component {
         id: fileDialogComponent
@@ -82,7 +142,7 @@ Item
     {
         id: dateDialog
         property date pickedDate: root.currentDate
-        title: i18n("Go to date")
+        title: i18n("Go to Date")
         actions: [
             Action { text: i18n("Cancel"); onTriggered: dateDialog.close() },
             Action { text: i18n("Go"); Maui.Controls.status: Maui.Controls.Positive; onTriggered: { root.selectDateRequested(dateDialog.pickedDate); dateDialog.close() } }
@@ -97,10 +157,76 @@ Item
         }
     }
 
+    Maui.InfoDialog
+    {
+        id: calendarManagementDialog
+        title: i18n("Manage Calendars")
+        standardButtons: Dialog.Close
+
+        ColumnLayout
+        {
+            Layout.fillWidth: true
+
+            Maui.SectionHeader
+            {
+                Layout.fillWidth: true
+                text1: i18n("Calendars")
+                text2: i18n("Create, import, export, or subscribe to calendars.")
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("New calendar")
+                icon.name: "list-add"
+                onClicked: { calendarManagementDialog.close(); root.openNewCalendarDialog() }
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Subscribe to calendar")
+                icon.name: "internet-services"
+                onClicked: { calendarManagementDialog.close(); root.openSubscriptionDialog() }
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Import calendar")
+                icon.name: "document-import"
+                onClicked: { calendarManagementDialog.close(); root.openCalendarFile() }
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Export calendar")
+                icon.name: "document-export"
+                onClicked: { calendarManagementDialog.close(); root.saveCalendarFile() }
+            }
+
+            Maui.SectionHeader
+            {
+                Layout.fillWidth: true
+                text1: i18n("Accounts")
+                text2: i18n("Connect to and manage CalDAV accounts.")
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Manage CalDAV accounts")
+                icon.name: "network-server"
+                onClicked: { calendarManagementDialog.close(); root.openAccountsDialog() }
+            }
+        }
+    }
+
     Maui.InputDialog
     {
         id: subscriptionDialog
-        title: i18n("Subscribe calendar")
+        title: i18n("Subscribe to Calendar")
         message: i18n("Enter a webcal or HTTPS calendar URL.")
         onFinished: function(url) { MauiCalendar.CalendarManager.subscribeUrl(url) }
     }
@@ -108,7 +234,7 @@ Item
     Maui.InputDialog
     {
         id: newCalendarDialog
-        title: i18n("New calendar")
+        title: i18n("New Calendar")
         message: i18n("Enter a name for the new calendar.")
         onFinished: function(name) { MauiCalendar.CalendarManager.addCollection(name) }
     }
@@ -117,7 +243,7 @@ Item
     {
         id: caldavDialog
         property string oauthMessage: ""
-        title: i18n("Sync CalDAV")
+        title: i18n("CalDAV Account")
         standardButtons: Dialog.Ok | Dialog.Cancel
         onAccepted:
         {
@@ -247,7 +373,7 @@ Item
     Maui.InfoDialog
     {
         id: caldavAccountsDialog
-        title: i18n("CalDAV accounts")
+        title: i18n("Manage CalDAV Accounts")
         standardButtons: Dialog.Close
 
         ListView
@@ -262,6 +388,12 @@ Item
                 required property var modelData
                 width: caldavAccountsList.width
 
+                TapHandler
+                {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: function(eventPoint) { root.showAccountContext(modelData, parent, eventPoint.position.x, eventPoint.position.y) }
+                }
+
                 Label
                 {
                     Layout.fillWidth: true
@@ -272,27 +404,13 @@ Item
                 ToolButton
                 {
                     icon.name: "document-edit"
-                    onClicked:
-                    {
-                        caldavUrlField.text = modelData.url
-                        caldavUsernameField.text = modelData.username
-                        caldavAuthTypeField.currentIndex = modelData.authType === "bearer" ? 1 : 0
-                        caldavTokenUrlField.text = modelData.tokenUrl || ""
-                        caldavClientIdField.text = modelData.clientId || ""
-                        caldavAuthorizationUrlField.text = modelData.authorizationUrl || ""
-                        caldavPasswordField.clear()
-                        caldavRefreshTokenField.clear()
-                        caldavClientSecretField.clear()
-                        caldavAutoSyncCheck.checked = modelData.enabled
-                        caldavAccountsDialog.close()
-                        caldavDialog.open()
-                    }
+                    onClicked: root.editCalDavAccount(modelData)
                 }
 
                 ToolButton
                 {
                     icon.name: "edit-delete"
-                    onClicked: MA.Accounts.removeCalDavAccount(modelData.url)
+                    onClicked: root.requestRemoveAccount(modelData)
                 }
             }
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -301,7 +419,7 @@ Item
         Button
         {
             Layout.fillWidth: true
-            text: i18n("Add account")
+            text: i18n("Add CalDAV account")
             onClicked:
             {
                 caldavUrlField.clear()
@@ -326,7 +444,7 @@ Item
         property int collectionId: -1
         property var permissionEntries: []
         property string errorMessage: ""
-        title: i18n("Calendar permissions")
+        title: i18n("Calendar Permissions")
         hint: 1
 
         function openForCollection(id)
@@ -468,7 +586,7 @@ Item
         id: syncConflictDialog
         property string conflictUid: ""
         property string conflictMessage: ""
-        title: i18n("Calendar sync conflict")
+        title: i18n("Calendar Sync Conflict")
         hint: 1
         actions: [
             Action
@@ -1175,7 +1293,7 @@ Item
     {
         id: taskDialog
         property bool editing: false
-        title: editing ? i18n("Edit task") : i18n("New task")
+        title: editing ? i18n("Edit Task") : i18n("New Task")
         hint: 1
         maxWidth: Maui.Style.units.gridUnit * 22
         persistent: true
@@ -1512,5 +1630,183 @@ Item
             onToggled: taskIncidence.todoCompleted = checked
         }
     }
+
+
+    Maui.ContextualMenu
+    {
+        id: eventContextMenu
+        property var incidence: null
+        property var occurrence: null
+        property bool recurring: false
+        property int collectionId: -1
+        title: incidence ? incidence.summary : ""
+
+        MenuItem
+        {
+            text: i18n("Open event")
+            icon.name: "document-edit"
+            onTriggered: root.openExistingEvent(eventContextMenu.incidence, eventContextMenu.occurrence)
+        }
+
+        MenuSeparator {}
+
+        MenuItem
+        {
+            visible: !eventContextMenu.recurring
+            text: i18n("Delete event…")
+            icon.name: "edit-delete"
+            enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
+            onTriggered:
+            {
+                deleteConfirmation.pendingKind = "event"
+                deleteConfirmation.incidence = eventContextMenu.incidence
+                deleteConfirmation.occurrence = eventContextMenu.occurrence
+                deleteConfirmation.open()
+            }
+        }
+
+        MenuItem
+        {
+            visible: eventContextMenu.recurring
+            text: i18n("Delete this occurrence…")
+            icon.name: "edit-delete"
+            enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
+            onTriggered:
+            {
+                deleteConfirmation.pendingKind = "occurrence"
+                deleteConfirmation.incidence = eventContextMenu.incidence
+                deleteConfirmation.occurrence = eventContextMenu.occurrence
+                deleteConfirmation.open()
+            }
+        }
+
+        MenuItem
+        {
+            visible: eventContextMenu.recurring
+            text: i18n("Delete series…")
+            icon.name: "edit-delete"
+            enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
+            onTriggered:
+            {
+                deleteConfirmation.pendingKind = "series"
+                deleteConfirmation.incidence = eventContextMenu.incidence
+                deleteConfirmation.occurrence = eventContextMenu.occurrence
+                deleteConfirmation.open()
+            }
+        }
+    }
+
+    Maui.ContextualMenu
+    {
+        id: dayContextMenu
+        property date date: new Date()
+        title: Qt.formatDate(date, "dddd, MMMM d, yyyy")
+
+        MenuItem
+        {
+            text: i18n("New event")
+            icon.name: "list-add"
+            onTriggered: root.openNewEvent(dayContextMenu.date)
+        }
+
+        MenuItem
+        {
+            text: i18n("New task")
+            icon.name: "view-task"
+            onTriggered: root.openNewTask(dayContextMenu.date)
+        }
+    }
+
+    Maui.ContextualMenu
+    {
+        id: taskContextMenu
+        property var task: null
+        title: taskContextMenu.task ? taskContextMenu.task.summary : ""
+
+        MenuItem
+        {
+            text: i18n("Open task")
+            icon.name: "document-edit"
+            onTriggered: root.openExistingTask(taskContextMenu.task.incidencePtr)
+        }
+
+        MenuItem
+        {
+            text: taskContextMenu.task && taskContextMenu.task.completed ? i18n("Mark incomplete") : i18n("Mark complete")
+            icon.name: taskContextMenu.task && taskContextMenu.task.completed ? "edit-undo" : "task-complete"
+            enabled: taskContextMenu.task && !MauiCalendar.CalendarManager.isCollectionReadOnly(taskContextMenu.task.collectionId)
+            onTriggered: root.taskCompletionRequested(taskContextMenu.task, !taskContextMenu.task.completed)
+        }
+
+        MenuSeparator {}
+
+        MenuItem
+        {
+            text: i18n("Delete task…")
+            icon.name: "edit-delete"
+            enabled: taskContextMenu.task && !MauiCalendar.CalendarManager.isCollectionReadOnly(taskContextMenu.task.collectionId)
+            onTriggered:
+            {
+                deleteConfirmation.pendingKind = "task"
+                deleteConfirmation.incidence = taskContextMenu.task.incidencePtr
+                deleteConfirmation.open()
+            }
+        }
+    }
+
+    Maui.ContextualMenu
+    {
+        id: accountContextMenu
+        property var account: null
+        title: account ? account.url : ""
+
+        MenuItem
+        {
+            text: i18n("Edit account")
+            icon.name: "document-edit"
+            onTriggered: root.editCalDavAccount(accountContextMenu.account)
+        }
+
+        MenuItem
+        {
+            text: i18n("Remove account…")
+            icon.name: "edit-delete"
+            onTriggered:
+            {
+                root.requestRemoveAccount(accountContextMenu.account)
+            }
+        }
+    }
+
+    Maui.InfoDialog
+    {
+        id: deleteConfirmation
+        property string pendingKind: ""
+        property var incidence: null
+        property var occurrence: null
+        property string accountUrl: ""
+        title: pendingKind === "task" ? i18n("Delete Task") : pendingKind === "account" ? i18n("Remove Account") : i18n("Delete Event")
+        message: pendingKind === "account" ? i18n("Remove this CalDAV account?") : i18n("This action cannot be undone.")
+        standardButtons: Dialog.Yes | Dialog.Cancel
+
+        onAccepted:
+        {
+            if (pendingKind === "task")
+                root.taskDeletionRequested(incidence)
+            else if (pendingKind === "account")
+                MA.Accounts.removeCalDavAccount(accountUrl)
+            else if (pendingKind === "series")
+                MauiCalendar.CalendarManager.deleteIncidenceSeries(incidence)
+            else if (pendingKind === "occurrence")
+                MauiCalendar.CalendarManager.deleteIncidenceOccurrence(incidence, occurrence)
+            else if (pendingKind === "event")
+                MauiCalendar.CalendarManager.deleteIncidence(incidence)
+            pendingKind = ""
+            incidence = null
+            occurrence = null
+            accountUrl = ""
+        }
+    }
+
 
 }

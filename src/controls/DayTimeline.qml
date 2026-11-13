@@ -24,6 +24,8 @@ Item
     }
 
     signal incidenceActivated(var incidence, var occurrence)
+    signal eventContextRequested(var incidence, var occurrence, bool recurring, int collectionId, var anchor, real x, real y)
+    signal timeContextRequested(date date, var anchor, real x, real y)
     signal timeSlotActivated(var date)
     signal dateActivated(var date)
 
@@ -183,6 +185,8 @@ Item
                                     required property var color
                                     required property var incidencePtr
                                     required property var startTime
+                                    required property bool recurs
+                                    required property int collectionId
                                     visible: allDay
                                     width: parent.width
                                     height: allDay ? Maui.Style.rowHeight : 0
@@ -194,6 +198,7 @@ Item
                                         border.width: Maui.Style.space.tiny / 4
                                     }
                                     onClicked: control.incidenceActivated(incidencePtr, startTime)
+                                    onRightClicked: function(mouse) { control.eventContextRequested(incidencePtr, startTime, recurs, collectionId, this, mouse.x, mouse.y) }
                                 }
                             }
                         }
@@ -290,7 +295,14 @@ Item
                                         MouseArea
                                         {
                                             anchors.fill: parent
-                                            onClicked: control.incidenceActivated(modelData.incidencePtr, modelData.startTime)
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onClicked: function(mouse)
+                                            {
+                                                if (mouse.button === Qt.RightButton)
+                                                    control.eventContextRequested(modelData.incidencePtr, modelData.startTime, modelData.recurs, modelData.collectionId, parent, mouse.x, mouse.y)
+                                                else
+                                                    control.incidenceActivated(modelData.incidencePtr, modelData.startTime)
+                                            }
                                         }
                                     }
                                 }
@@ -301,7 +313,15 @@ Item
                         {
                             anchors.fill: parent
                             z: -1
-                            acceptedButtons: Qt.LeftButton
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: function(mouse)
+                            {
+                                if (mouse.button !== Qt.RightButton)
+                                    return
+                                const minutes = Math.floor(Math.max(0, mouse.y - control.timelineOffset) / control.hourHeight * 4) * 15
+                                const date = new Date(dayColumn.dayDate.getFullYear(), dayColumn.dayDate.getMonth(), dayColumn.dayDate.getDate(), Math.floor(minutes / 60), minutes % 60)
+                                control.timeContextRequested(date, parent, mouse.x, mouse.y)
+                            }
                             onDoubleClicked: function(mouse)
                             {
                                 const minutes = Math.floor(Math.max(0, mouse.y - control.timelineOffset) / control.hourHeight * 4) * 15

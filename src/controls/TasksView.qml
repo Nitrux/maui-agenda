@@ -13,6 +13,7 @@ ColumnLayout
     signal taskActivated(var incidence)
     signal completionRequested(var task, bool completed)
     signal deletionRequested(var incidence)
+    signal taskContextRequested(var task, var anchor, real x, real y)
 
     spacing: Maui.Style.space.big
 
@@ -45,6 +46,7 @@ ColumnLayout
             label3.visible: modelData.priority > 0
             iconSource: "view-task"
             onClicked: control.taskActivated(modelData.incidencePtr)
+            onRightClicked: function(mouse) { control.taskContextRequested(modelData, this, mouse.x, mouse.y) }
 
             CheckBox
             {

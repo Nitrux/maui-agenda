@@ -8,6 +8,7 @@
 
 #include <MauiKit4/Core/mauiapp.h>
 #include <MauiKit4/Calendar/moduleinfo.h>
+#include <MauiKit4/FileBrowsing/moduleinfo.h>
 #include <calendarmanager.h>
 
 #include <KAboutData>
@@ -47,6 +48,9 @@ int main(int argc, char *argv[])
     about.setOrganizationDomain(AGENDA_URI);
     about.setDesktopFileName("org.maui.agenda");
     about.setProgramLogo(app.windowIcon());
+
+    const auto fileBrowsingData = MauiKitFileBrowsing::aboutData();
+    about.addComponent(fileBrowsingData.name(), MauiKitFileBrowsing::buildVersion(), fileBrowsingData.version(), fileBrowsingData.webAddress());
 
     const auto calendarData = MauiKitCalendar::aboutData();
     about.addComponent(calendarData.name(), MauiKitCalendar::buildVersion(), calendarData.version(), calendarData.webAddress());

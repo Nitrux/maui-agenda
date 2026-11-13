@@ -13,6 +13,7 @@ ColumnLayout
     required property string viewTitle
     signal dateSelected(date date)
     signal monthSelected(date date)
+    signal dateContextRequested(date date, var anchor, real x, real y)
 
     clip: true
     spacing: Maui.Style.space.big
@@ -90,6 +91,7 @@ ColumnLayout
                             year: control.currentDate.getFullYear()
                             month: monthCard.month
                             onDateClicked: function(date) { control.dateSelected(date) }
+                            onDateContextRequested: function(date, anchor, x, y) { control.dateContextRequested(date, anchor, x, y) }
                         }
                     }
                 }

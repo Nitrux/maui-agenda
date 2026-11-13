@@ -15,6 +15,14 @@ Pane
     signal collectionVisibilityChanged(string ids)
     signal collectionPermissionsRequested(int collectionId)
 
+    function toggleCollection(collectionId, index)
+    {
+        const hidden = MauiCalendar.Filter.collectionIds.includes(String(collectionId))
+        calendarList.model.setData(calendarList.model.index(index, 0), hidden ? Qt.Checked : Qt.Unchecked, Qt.CheckStateRole)
+        MauiCalendar.Filter.toggleCollection(collectionId)
+        control.collectionVisibilityChanged(MauiCalendar.Filter.collectionIds.join(","))
+    }
+
     Component.onCompleted: MauiCalendar.Filter.setCollectionIds(hiddenCollectionIds.length === 0 ? [] : hiddenCollectionIds.split(","))
 
     function viewLabel(view)
@@ -53,7 +61,7 @@ Pane
     {
         id: collectionColorDialog
         property int collectionId: -1
-        title: i18n("Calendar color")
+        title: i18n("Calendar Color")
         hint: 1
         actions: [Action { text: i18n("Cancel"); onTriggered: close() }]
 
@@ -84,6 +92,80 @@ Pane
                 }
             }
         }
+    }
+
+    Maui.ContextualMenu
+    {
+        id: calendarContextMenu
+        property int collectionId: -1
+        property int collectionIndex: -1
+        property string collectionName: ""
+        readonly property bool canDeleteCollection: collectionId > 0
+                && !MauiCalendar.CalendarManager.isCalDavCollection(collectionId)
+                && MauiCalendar.CalendarManager.subscriptionForCollection(collectionId).length === 0
+        title: collectionName
+
+        MenuItem
+        {
+            text: i18n("Show calendar")
+            visible: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId))
+            icon.name: "view-visible"
+            onTriggered: control.toggleCollection(calendarContextMenu.collectionId, calendarContextMenu.collectionIndex)
+        }
+
+        MenuItem
+        {
+            text: i18n("Hide calendar")
+            visible: !MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId))
+            icon.name: "view-hidden"
+            onTriggered: control.toggleCollection(calendarContextMenu.collectionId, calendarContextMenu.collectionIndex)
+        }
+
+        MenuItem
+        {
+            text: i18n("Set calendar color")
+            icon.name: "color-picker"
+            onTriggered:
+            {
+                collectionColorDialog.collectionId = calendarContextMenu.collectionId
+                collectionColorDialog.open()
+            }
+        }
+
+        MenuItem
+        {
+            text: i18n("Permissions")
+            icon.name: "user-group-properties"
+            visible: MauiCalendar.CalendarManager.isCalDavCollection(calendarContextMenu.collectionId)
+            onTriggered: control.collectionPermissionsRequested(calendarContextMenu.collectionId)
+        }
+
+        MenuSeparator { visible: calendarContextMenu.canDeleteCollection }
+
+        MenuItem
+        {
+            text: i18n("Delete calendar…")
+            icon.name: "edit-delete"
+            visible: calendarContextMenu.canDeleteCollection
+            enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(calendarContextMenu.collectionId)
+            onTriggered:
+            {
+                deleteCalendarDialog.collectionId = calendarContextMenu.collectionId
+                deleteCalendarDialog.collectionName = calendarContextMenu.collectionName
+                deleteCalendarDialog.open()
+            }
+        }
+    }
+
+    Maui.InfoDialog
+    {
+        id: deleteCalendarDialog
+        property int collectionId: -1
+        property string collectionName: ""
+        title: i18n("Delete Calendar")
+        message: i18n("Delete “%1” and its events? This action cannot be undone.", collectionName)
+        standardButtons: Dialog.Yes | Dialog.Cancel
+        onAccepted: MauiCalendar.CalendarManager.removeCollection(collectionId)
     }
 
     background: Rectangle
@@ -170,10 +252,17 @@ Pane
                 onClicked:
                 {
                     calendarList.currentIndex = index
-                    const hidden = MauiCalendar.Filter.collectionIds.includes(String(collectionId))
-                    calendarList.model.setData(calendarList.model.index(index, 0), hidden ? Qt.Checked : Qt.Unchecked, Qt.CheckStateRole)
-                    MauiCalendar.Filter.toggleCollection(collectionId)
-                    control.collectionVisibilityChanged(MauiCalendar.Filter.collectionIds.join(","))
+                    control.toggleCollection(collectionId, index)
+                }
+
+                onRightClicked: function(mouse)
+                {
+                    calendarContextMenu.collectionId = collectionId
+                    calendarContextMenu.collectionName = label
+                    calendarContextMenu.collectionIndex = index
+                    calendarList.currentIndex = index
+                    const point = mapToItem(control, mouse.x, mouse.y)
+                    calendarContextMenu.popup(point.x, point.y)
                 }
 
             }
