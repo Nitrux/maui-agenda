@@ -35,6 +35,13 @@ Item
     readonly property real ruleInset: Maui.Style.space.small
     readonly property real timelineOffset: Maui.Style.rowHeight / 2
     readonly property real timelineHeight: 24 * hourHeight + 2 * timelineOffset
+    readonly property bool currentDateInWeek: {
+        const today = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate())
+        const weekStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekEnd.getDate() + 7)
+        return today >= weekStart && today < weekEnd
+    }
 
     Flickable
     {
@@ -98,7 +105,7 @@ Item
                         Item
                         {
                             id: currentTimeLine
-                            visible: dayColumn.isToday
+                            visible: dayColumn.isToday || (control.tableRules && control.dayCount < 7 && dayColumn.index === 0 && control.currentDateInWeek)
                             x: control.dayCount === 1 ? control.ruleInset : -dayColumn.index * dayColumn.width
                             y: Math.round(control.timelineOffset + (control.currentTime.getHours() + control.currentTime.getMinutes() / 60 + control.currentTime.getSeconds() / 3600) * control.hourHeight - timelineFlickable.contentY) + timelineFlickable.contentY
                             width: control.dayCount === 1 ? parent.width - 2 * control.ruleInset : dayColumn.width * control.dayCount

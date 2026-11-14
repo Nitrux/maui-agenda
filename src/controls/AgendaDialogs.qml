@@ -15,7 +15,6 @@ Item
     anchors.fill: parent
     required property date currentDate
     required property int currentView
-    required property bool workWeek
     required property real availableHeight
 
     signal selectDateRequested(date date)
@@ -23,8 +22,6 @@ Item
     signal refreshTasksRequested()
     signal taskCompletionRequested(var task, bool completed)
     signal taskDeletionRequested(var incidence)
-    signal workWeekToggled(bool enabled)
-
     function openNewEvent(date) { eventDialog.openNew(date) }
     function openNewEventAt(date) { eventDialog.openNewAt(date) }
     function openExistingEvent(incidence, occurrence) { eventDialog.openExisting(incidence, occurrence) }

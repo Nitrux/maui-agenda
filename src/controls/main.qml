@@ -124,14 +124,12 @@ Maui.ApplicationWindow
         id: agendaDialogs
         currentDate: root.currentDate
         currentView: root.currentView
-        workWeek: root.workWeek
         availableHeight: root.height
         onSelectDateRequested: function(date) { root.selectDate(date) }
         onSelectViewRequested: function(view) { root.currentView = view }
         onRefreshTasksRequested: root.refreshTaskItems()
         onTaskCompletionRequested: function(task, completed) { root.setTaskCompleted(task, completed) }
         onTaskDeletionRequested: function(incidence) { MauiCalendar.CalendarManager.deleteIncidence(incidence); root.refreshTaskItems() }
-        onWorkWeekToggled: function(enabled) { agendaSettings.workWeek = enabled; root.workWeek = enabled }
     }
 
     Maui.WindowBlur
@@ -200,26 +198,33 @@ Maui.ApplicationWindow
             id: mainPage
             property Action createEventAction: Action
             {
-                text: i18n("New event")
+                text: i18n("New Event")
                 icon.name: "list-add"
                 onTriggered: root.openNewEvent()
             }
 
             property Action createTaskAction: Action
             {
-                text: i18n("New task")
+                text: i18n("New Task")
                 icon.name: "view-task"
                 onTriggered: root.openNewTask()
             }
 
             property Action goToDateAction: Action
             {
-                text: i18n("Go to date")
+                text: i18n("Go to Date")
                 icon.name: "view-calendar"
                 onTriggered: agendaDialogs.openDateDialog()
             }
 
-            readonly property list<Action> floatingActions: root.currentView === 5 ? [createTaskAction, goToDateAction] : [createEventAction, goToDateAction]
+            property Action synchronizeCalendarsAction: Action
+            {
+                text: i18n("Synchronize Calendars")
+                icon.name: "view-refresh"
+                onTriggered: MauiCalendar.CalendarManager.syncAllCalDavAccounts()
+            }
+
+            readonly property list<Action> floatingActions: root.currentView === 5 ? [createTaskAction, goToDateAction, synchronizeCalendarsAction] : [createEventAction, goToDateAction, synchronizeCalendarsAction]
 
             focus: true
             Keys.enabled: true
@@ -325,15 +330,6 @@ Maui.ApplicationWindow
                         root.searchActive = !root.searchActive
                     }
                 },
-                ToolButton
-                {
-                    icon.name: "view-refresh"
-                    ToolTip.delay: 1000
-                    ToolTip.timeout: 5000
-                    ToolTip.visible: hovered
-                    ToolTip.text: i18n("Synchronize calendars")
-                    onClicked: MauiCalendar.CalendarManager.syncAllCalDavAccounts()
-                },
                 ToolSeparator
                 {
                     height: Maui.Style.space.medium
@@ -346,7 +342,15 @@ Maui.ApplicationWindow
 
                     MenuItem
                     {
-                        text: i18n("Manage calendars")
+                        text: i18n("Show Work Week")
+                        checkable: true
+                        checked: root.workWeek
+                        onTriggered: agendaSettings.workWeek = !agendaSettings.workWeek
+                    }
+
+                    MenuItem
+                    {
+                        text: i18n("Manage Calendars")
                         icon.name: "view-calendar"
                         onTriggered: agendaDialogs.openCalendarManagement()
                     }

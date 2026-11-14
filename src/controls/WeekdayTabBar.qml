@@ -45,11 +45,6 @@ Maui.TabBar
         radius: height / 2
     }
 
-    onCurrentIndexChanged: {
-        if (currentIndex >= 0 && currentIndex < dayCount)
-            control.dateSelected(control.dateAtIndex(currentIndex))
-    }
-
     Instantiator
     {
         model: control.dayCount
@@ -62,6 +57,10 @@ Maui.TabBar
             text: {
                 const date = control.dateAtIndex(index)
                 return control.showDateNumbers ? Qt.formatDate(date, "ddd") + " " + date.getDate() : Qt.formatDate(date, "ddd")
+            }
+            onClicked: {
+                const date = control.dateAtIndex(index)
+                control.dateSelected(date)
             }
         }
 
