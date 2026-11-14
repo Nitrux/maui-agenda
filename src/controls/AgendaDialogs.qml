@@ -623,12 +623,17 @@ Item
         id: eventDialog
         property bool editing: false
         property bool allDayChoiceMade: false
+        property bool titleTouched: false
+        property bool advancedOptionsEnabled: false
+        property bool attendeeEntryExpanded: false
         property var occurrenceStart: null
+        readonly property var quickReminderValues: [0, 5, 10, 15, 30, 60, 1440]
+        readonly property var quickReminderLabels: [i18n("No Reminder"), i18n("5 Minutes Before"), i18n("10 Minutes Before"), i18n("15 Minutes Before"), i18n("30 Minutes Before"), i18n("1 Hour Before"), i18n("1 Day Before"), i18n("Custom")]
         title: editing ? i18n("Edit Event") : i18n("Add Event")
         hint: 1
-        maxWidth: Maui.Style.units.gridUnit * 22
+        maxWidth: Maui.Style.units.gridUnit * (Maui.Handy.isMobile ? 22 : 40)
         persistent: true
-        spacing: Maui.Style.space.big
+        spacing: Maui.Style.space.medium
 
         onOpened: _eventTitleField.forceActiveFocus()
 
@@ -636,6 +641,9 @@ Item
         {
             editing = false
             allDayChoiceMade = false
+            titleTouched = false
+            advancedOptionsEnabled = false
+            attendeeEntryExpanded = false
             eventIncidence.setNewEvent()
             eventIncidence.eventStatus = 2
             eventIncidence.allDay = false
@@ -661,6 +669,12 @@ Item
             occurrenceStart = occurrence || null
             eventIncidence.incidencePtr = incidence
             eventIncidence.triggerEditMode()
+            titleTouched = false
+            attendeeEntryExpanded = false
+            const reminders = eventIncidence.reminders
+            const simpleReminderValues = [5, 10, 15, 30, 60, 1440]
+            const hasAdvancedReminders = reminders.length > 1 || (reminders.length === 1 && (reminders[0].absolute || simpleReminderValues.indexOf(reminders[0].minutes) < 0))
+            advancedOptionsEnabled = eventIncidence.attendees.length > 0 || eventIncidence.eventStatus !== 2 || eventIncidence.recurrenceData.frequency > 0 || hasAdvancedReminders
             _attendeeNameField.text = ""
             _attendeeEmailField.text = ""
             if (occurrenceStart !== null) eventIncidence.setIncidenceStart(occurrenceStart, true)
@@ -750,11 +764,98 @@ Item
             id: _eventTitleField
             Layout.fillWidth: true
             Maui.Controls.title: i18n("Event title")
-            Maui.Controls.subtitle: eventIncidence.summary.trim().length === 0 ? i18n("Event title cannot be empty.") : ""
-            Maui.Controls.status: eventIncidence.summary.trim().length === 0 ? Maui.Controls.Negative : Maui.Controls.Normal
+            Maui.Controls.subtitle: eventDialog.titleTouched && eventIncidence.summary.trim().length === 0 ? i18n("Event title cannot be empty.") : ""
+            Maui.Controls.status: eventDialog.titleTouched && eventIncidence.summary.trim().length === 0 ? Maui.Controls.Negative : Maui.Controls.Normal
             text: eventIncidence.summary
-            onTextEdited: eventIncidence.summary = text
+            onTextEdited: { eventDialog.titleTouched = true; eventIncidence.summary = text }
             onAccepted: eventIncidence.summary = text
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            flat: true
+            leftPadding: 0
+            rightPadding: 0
+            label1.text: i18n("All day")
+
+            template.content: Switch
+            {
+                id: _allDaySwitch
+                checked: eventIncidence.allDay
+                onClicked:
+                {
+                    eventDialog.allDayChoiceMade = true
+                    if (!checked)
+                        eventIncidence.setIncidenceTimeToNearestQuarterHour()
+                    eventIncidence.allDay = checked
+                }
+            }
+        }
+
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Date & Time")
+
+            GridLayout
+            {
+                Layout.fillWidth: true
+                columns: Maui.Handy.isMobile ? 1 : 2
+                columnSpacing: Maui.Style.space.medium
+                rowSpacing: Maui.Style.space.small
+
+                ColumnLayout
+                {
+                    Layout.fillWidth: true
+                    Label { text: i18n("Start") }
+                    MauiCalendar.DateComboBox
+                    {
+                        id: _startDateComboBox
+                        Layout.fillWidth: true
+                        displayText: eventIncidence.incidenceStartDateDisplay
+                        selectedDate: eventIncidence.incidenceStart
+                        onDatePicked: function(date) { eventIncidence.setIncidenceStartDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
+                    }
+                    MauiCalendar.TimeComboBox
+                    {
+                        id: _startTimeComboBox
+                        Layout.fillWidth: true
+                        visible: !_allDaySwitch.checked
+                        timeZoneOffset: eventIncidence.startTimeZoneUTCOffsetMins
+                        displayText: eventIncidence.incidenceStartTimeDisplay
+                        selectedTime: eventIncidence.incidenceStart
+                        onTimePicked: function(time) { eventIncidence.setIncidenceStartTime(time.getHours(), time.getMinutes()) }
+                    }
+                }
+
+                ColumnLayout
+                {
+                    Layout.fillWidth: true
+                    Label { text: i18n("End") }
+                    MauiCalendar.DateComboBox
+                    {
+                        id: _endDateComboBox
+                        Layout.fillWidth: true
+                        displayText: eventIncidence.incidenceEndDateDisplay
+                        selectedDate: eventIncidence.incidenceEnd
+                        onDatePicked: function(date) { eventIncidence.setIncidenceEndDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
+                    }
+                    MauiCalendar.TimeComboBox
+                    {
+                        id: _endTimeComboBox
+                        Layout.fillWidth: true
+                        visible: !_allDaySwitch.checked
+                        timeZoneOffset: eventIncidence.endTimeZoneUTCOffsetMins
+                        displayText: eventIncidence.incidenceEndTimeDisplay
+                        selectedTime: eventIncidence.incidenceEnd
+                        onTimePicked: function(time) { eventIncidence.setIncidenceEndTime(time.getHours(), time.getMinutes()) }
+                    }
+                }
+            }
         }
 
         Maui.SectionItem
@@ -776,8 +877,72 @@ Item
             }
         }
 
+        Maui.TextField
+        {
+            id: _eventLocationField
+            Layout.fillWidth: true
+            Maui.Controls.title: i18n("Location")
+            text: eventIncidence.location
+            onTextEdited: eventIncidence.location = text
+        }
+
         Maui.SectionItem
         {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            visible: !eventDialog.advancedOptionsEnabled
+            label1.text: i18n("Reminder")
+
+            ComboBox
+            {
+                Layout.fillWidth: true
+                model: eventDialog.quickReminderLabels
+                currentIndex: {
+                    const reminders = eventIncidence.reminders
+                    if (reminders.length === 0)
+                        return 0
+                    if (reminders.length !== 1 || reminders[0].absolute)
+                        return eventDialog.quickReminderLabels.length - 1
+                    const position = eventDialog.quickReminderValues.indexOf(reminders[0].minutes)
+                    return position > 0 ? position : eventDialog.quickReminderLabels.length - 1
+                }
+                onActivated: function(index)
+                {
+                    if (index === eventDialog.quickReminderLabels.length - 1)
+                        eventDialog.advancedOptionsEnabled = true
+                    else
+                        eventIncidence.setReminderMinutes(eventDialog.quickReminderValues[index])
+                }
+            }
+        }
+
+        Maui.TextField
+        {
+            id: _eventDescriptionField
+            Layout.fillWidth: true
+            Maui.Controls.title: i18n("Description")
+            text: eventIncidence.description
+            onTextEdited: eventIncidence.description = text
+        }
+
+        Maui.FlexSectionItem
+        {
+            Layout.fillWidth: true
+            label1.text: i18n("Show advanced options")
+            label2.text: i18n("Configure additional event options.")
+            label2.wrapMode: Text.Wrap
+
+            template.content: Switch
+            {
+                checked: eventDialog.advancedOptionsEnabled
+                onToggled: eventDialog.advancedOptionsEnabled = checked
+            }
+        }
+
+        Maui.SectionItem
+        {
+            visible: eventDialog.advancedOptionsEnabled
             Layout.fillWidth: true
             padding: 0
             flat: true
@@ -792,26 +957,9 @@ Item
             }
         }
 
-        Maui.TextField
-        {
-            id: _eventLocationField
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("Location")
-            text: eventIncidence.location
-            onTextEdited: eventIncidence.location = text
-        }
-
-        Maui.TextField
-        {
-            id: _eventDescriptionField
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("Description")
-            text: eventIncidence.description
-            onTextEdited: eventIncidence.description = text
-        }
-
         Maui.SectionItem
         {
+            visible: eventDialog.advancedOptionsEnabled
             Layout.fillWidth: true
             padding: 0
             flat: true
@@ -855,6 +1003,7 @@ Item
             {
                 id: _attendeeNameField
                 Layout.fillWidth: true
+                visible: eventDialog.attendeeEntryExpanded
                 Maui.Controls.title: i18n("Name")
             }
 
@@ -862,112 +1011,59 @@ Item
             {
                 id: _attendeeEmailField
                 Layout.fillWidth: true
+                visible: eventDialog.attendeeEntryExpanded
                 Maui.Controls.title: i18n("Email")
                 inputMethodHints: Qt.ImhEmailCharactersOnly
             }
 
-            Button
+            RowLayout
             {
                 Layout.fillWidth: true
-                text: i18n("Add attendee")
-                enabled: _attendeeEmailField.text.trim().length > 0
-                onClicked:
+
+                Button
                 {
-                    eventIncidence.addAttendee(_attendeeNameField.text, _attendeeEmailField.text)
-                    _attendeeNameField.text = ""
-                    _attendeeEmailField.text = ""
+                    Layout.fillWidth: true
+                    visible: eventDialog.attendeeEntryExpanded
+                    text: i18n("Add Guest")
+                    enabled: _attendeeEmailField.text.trim().length > 0
+                    onClicked:
+                    {
+                        eventIncidence.addAttendee(_attendeeNameField.text, _attendeeEmailField.text)
+                        _attendeeNameField.text = ""
+                        _attendeeEmailField.text = ""
+                    }
+                }
+
+                Button
+                {
+                    Layout.fillWidth: true
+                    visible: eventDialog.attendeeEntryExpanded
+                    text: i18n("Cancel")
+                    onClicked:
+                    {
+                        eventDialog.attendeeEntryExpanded = false
+                        _attendeeNameField.text = ""
+                        _attendeeEmailField.text = ""
+                    }
+                }
+
+                Button
+                {
+                    Layout.fillWidth: true
+                    visible: !eventDialog.attendeeEntryExpanded
+                    text: i18n("Add Guests")
+                    onClicked:
+                    {
+                        eventDialog.attendeeEntryExpanded = true
+                        _attendeeNameField.forceActiveFocus()
+                    }
                 }
             }
         }
 
         Maui.SectionItem
         {
-            Layout.fillWidth: true
-            flat: true
-            leftPadding: 0
-            rightPadding: 0
-            label1.text: i18n("All day")
-            label2.text: i18n("The event lasts the entire day.")
-            label2.wrapMode: Text.Wrap
-
-            template.content: Switch
-            {
-                id: _allDaySwitch
-                checked: eventIncidence.allDay
-                onClicked:
-                {
-                    eventDialog.allDayChoiceMade = true
-                    if (!checked)
-                        eventIncidence.setIncidenceTimeToNearestQuarterHour()
-                    eventIncidence.allDay = checked
-                }
-            }
-        }
-
-        Maui.SectionItem
-        {
-            id: _durationSection
-            Layout.fillWidth: true
-            padding: 0
-            flat: true
-            label1.text: i18n("Duration")
-            label2.text: i18n("From")
-            label2.wrapMode: Text.Wrap
-
-            MauiCalendar.DateComboBox
-            {
-                id: _startDateComboBox
-                Layout.fillWidth: true
-                displayText: eventIncidence.incidenceStartDateDisplay
-                selectedDate: eventIncidence.incidenceStart
-                onDatePicked: function(date) { eventIncidence.setIncidenceStartDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
-            }
-
-            MauiCalendar.TimeComboBox
-            {
-                id: _startTimeComboBox
-                Layout.fillWidth: true
-                visible: !_allDaySwitch.checked
-                timeZoneOffset: eventIncidence.startTimeZoneUTCOffsetMins
-                displayText: eventIncidence.incidenceStartTimeDisplay
-                selectedTime: eventIncidence.incidenceStart
-                onTimePicked: function(time) { eventIncidence.setIncidenceStartTime(time.getHours(), time.getMinutes()) }
-            }
-        }
-
-
-        Maui.SectionItem
-        {
-            id: _endSection
-            Layout.fillWidth: true
-            padding: 0
-            flat: true
-            label2.text: i18n("To")
-
-            MauiCalendar.DateComboBox
-            {
-                id: _endDateComboBox
-                Layout.fillWidth: true
-                displayText: eventIncidence.incidenceEndDateDisplay
-                selectedDate: eventIncidence.incidenceEnd
-                onDatePicked: function(date) { eventIncidence.setIncidenceEndDate(date.getDate(), date.getMonth() + 1, date.getFullYear()) }
-            }
-
-            MauiCalendar.TimeComboBox
-            {
-                id: _endTimeComboBox
-                Layout.fillWidth: true
-                visible: !_allDaySwitch.checked
-                timeZoneOffset: eventIncidence.endTimeZoneUTCOffsetMins
-                displayText: eventIncidence.incidenceEndTimeDisplay
-                selectedTime: eventIncidence.incidenceEnd
-                onTimePicked: function(time) { eventIncidence.setIncidenceEndTime(time.getHours(), time.getMinutes()) }
-            }
-        }
-
-
-        Maui.SectionItem
-        {
+            visible: eventDialog.advancedOptionsEnabled
             id: _recurrenceSection
             Layout.fillWidth: true
             padding: 0
@@ -1075,6 +1171,7 @@ Item
             {
                 id: _recurrenceEndModeComboBox
                 Layout.fillWidth: true
+                visible: _recurrenceComboBox.currentIndex > 0
                 currentIndex: {
                     const data = eventIncidence.recurrenceData
                     if (data && data.duration > 0) return 1
@@ -1097,7 +1194,7 @@ Item
             {
                 id: _recurrenceCountSpinBox
                 Layout.fillWidth: true
-                visible: _recurrenceEndModeComboBox.currentIndex === 1
+                visible: _recurrenceComboBox.currentIndex > 0 && _recurrenceEndModeComboBox.currentIndex === 1
                 from: 1
                 to: 9999
                 value: eventIncidence.recurrenceData.duration > 0 ? eventIncidence.recurrenceData.duration : 10
@@ -1108,7 +1205,7 @@ Item
             {
                 id: _recurrenceEndDateComboBox
                 Layout.fillWidth: true
-                visible: _recurrenceEndModeComboBox.currentIndex === 2
+                visible: _recurrenceComboBox.currentIndex > 0 && _recurrenceEndModeComboBox.currentIndex === 2
                 displayText: Qt.formatDate(selectedDate, "dd/MM/yyyy")
                 selectedDate: eventIncidence.recurrenceData.endDateTime
                 onDatePicked: function(date) { eventIncidence.setRecurrenceEndDate(date) }
@@ -1157,6 +1254,7 @@ Item
 
         Maui.SectionItem
         {
+            visible: eventDialog.advancedOptionsEnabled
             id: _reminderSection
             Layout.fillWidth: true
             padding: 0
@@ -1255,6 +1353,7 @@ Item
 
         Maui.SectionItem
         {
+            visible: eventDialog.advancedOptionsEnabled
             id: _timeZoneSection
             Layout.fillWidth: true
             padding: 0
