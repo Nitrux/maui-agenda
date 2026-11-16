@@ -25,6 +25,39 @@ Item
     function openNewEvent(date) { eventDialog.openNew(date) }
     function openNewEventAt(date) { eventDialog.openNewAt(date) }
     function openExistingEvent(incidence, occurrence) { eventDialog.openExisting(incidence, occurrence) }
+    function openEventDetails(incidence, occurrence)
+    {
+        if (!incidence)
+            return
+
+        eventDetailsDialog.incidence = incidence
+        eventDetailsDialog.occurrence = occurrence || null
+        eventPreviewIncidence.incidencePtr = incidence
+        eventPreviewIncidence.triggerEditMode()
+        if (eventDetailsDialog.occurrence !== null)
+            eventPreviewIncidence.setIncidenceStart(eventDetailsDialog.occurrence, true)
+        eventDetailsDialog.open()
+    }
+    function eventPreviewMessage()
+    {
+        const startDate = eventPreviewIncidence.incidenceStartDateDisplay
+        const endDate = eventPreviewIncidence.incidenceEndDateDisplay
+        let dateTime
+
+        if (eventPreviewIncidence.allDay)
+            dateTime = startDate === endDate ? startDate + " · " + i18n("All day") : startDate + " – " + endDate + " · " + i18n("All day")
+        else if (startDate === endDate)
+            dateTime = startDate + " · " + eventPreviewIncidence.incidenceStartTimeDisplay + " – " + eventPreviewIncidence.incidenceEndTimeDisplay
+        else
+            dateTime = startDate + " · " + eventPreviewIncidence.incidenceStartTimeDisplay + " – " + endDate + " · " + eventPreviewIncidence.incidenceEndTimeDisplay
+
+        const details = [dateTime]
+        if (eventPreviewIncidence.location.length > 0)
+            details.push(i18n("Location") + ": " + eventPreviewIncidence.location)
+        if (eventPreviewIncidence.description.length > 0)
+            details.push(eventPreviewIncidence.description)
+        return details.join("\n\n")
+    }
     function openNewTask(date) { taskDialog.openNew(date) }
     function openExistingTask(incidence) { taskDialog.openExisting(incidence) }
     function openDateDialog() { dateDialog.pickedDate = root.currentDate; dateDialog.open() }
@@ -33,6 +66,63 @@ Item
     function openSubscriptionDialog() { subscriptionDialog.open() }
     function openNewCalendarDialog() { newCalendarDialog.open() }
     function openPermissions(collectionId) { permissionsDialog.openForCollection(collectionId) }
+
+    property var timeZoneOptions: []
+    property var timeZoneRegions: []
+    property var timeZoneCities: []
+
+    function registerTimeZone(id, display)
+    {
+        const zoneId = String(id)
+        let region = "Other"
+        let city = String(display)
+
+        if (zoneId === "Floating")
+        {
+            region = "General"
+            city = i18n("Auto")
+        }
+        else if (zoneId === "UTC")
+        {
+            region = "General"
+            city = "UTC"
+        }
+        else
+        {
+            const separator = zoneId.indexOf("/")
+            if (separator >= 0)
+            {
+                region = zoneId.substring(0, separator)
+                city = zoneId.substring(separator + 1).replace(/_/g, " ")
+            }
+        }
+
+        const options = root.timeZoneOptions.slice()
+        options.push({ region: region, city: city, id: zoneId })
+        root.timeZoneOptions = options
+
+        if (!root.timeZoneRegions.includes(region))
+        {
+            const regions = root.timeZoneRegions.concat([region])
+            regions.sort()
+            root.timeZoneRegions = regions
+        }
+    }
+
+    function updateTimeZoneCities(region)
+    {
+        root.timeZoneCities = root.timeZoneOptions.filter(function(option) { return option.region === region })
+    }
+
+    function syncTimeZoneSelectors()
+    {
+        const option = root.timeZoneOptions.find(function(item) { return item.id === String(eventIncidence.timeZone) })
+        if (!option)
+            return
+
+        eventDialog.selectedTimeZoneRegion = option.region
+        root.updateTimeZoneCities(option.region)
+    }
 
     function popupAt(menu, anchor, x, y)
     {
@@ -578,6 +668,16 @@ Item
         function onCaldavOAuthError(message) { caldavDialog.oauthMessage = message }
     }
 
+    Repeater
+    {
+        model: MauiCalendar.TimeZoneListModel {}
+
+        delegate: Item
+        {
+            Component.onCompleted: root.registerTimeZone(model.id, model.display)
+        }
+    }
+
     Maui.PopupPage
     {
         id: syncConflictDialog
@@ -623,9 +723,9 @@ Item
         id: eventDialog
         property bool editing: false
         property bool allDayChoiceMade: false
-        property bool titleTouched: false
         property bool advancedOptionsEnabled: false
         property bool attendeeEntryExpanded: false
+        property string selectedTimeZoneRegion: ""
         property var occurrenceStart: null
         readonly property var quickReminderValues: [0, 5, 10, 15, 30, 60, 1440]
         readonly property var quickReminderLabels: [i18n("No Reminder"), i18n("5 Minutes Before"), i18n("10 Minutes Before"), i18n("15 Minutes Before"), i18n("30 Minutes Before"), i18n("1 Hour Before"), i18n("1 Day Before"), i18n("Custom")]
@@ -635,13 +735,16 @@ Item
         persistent: true
         spacing: Maui.Style.space.medium
 
-        onOpened: _eventTitleField.forceActiveFocus()
+        onOpened:
+        {
+            root.syncTimeZoneSelectors()
+            _eventTitleField.forceActiveFocus()
+        }
 
         function openNew(date)
         {
             editing = false
             allDayChoiceMade = false
-            titleTouched = false
             advancedOptionsEnabled = false
             attendeeEntryExpanded = false
             eventIncidence.setNewEvent()
@@ -669,7 +772,6 @@ Item
             occurrenceStart = occurrence || null
             eventIncidence.incidencePtr = incidence
             eventIncidence.triggerEditMode()
-            titleTouched = false
             attendeeEntryExpanded = false
             const reminders = eventIncidence.reminders
             const simpleReminderValues = [5, 10, 15, 30, 60, 1440]
@@ -687,27 +789,17 @@ Item
             onTriggered: eventDialog.close()
         }
 
-        property Action deleteSeriesAction: Action
+        property Action deleteAction: Action
         {
-            text: eventDialog.occurrenceStart !== null ? i18n("Delete series") : i18n("Delete")
+            text: i18n("Delete")
             Maui.Controls.status: Maui.Controls.Negative
             enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(eventIncidence.collectionId)
             onTriggered:
             {
-                MauiCalendar.CalendarManager.deleteIncidenceSeries(eventIncidence.originalIncidencePtr)
-                eventDialog.close()
-            }
-        }
-
-        property Action deleteOccurrenceAction: Action
-        {
-            text: i18n("Delete occurrence")
-            Maui.Controls.status: Maui.Controls.Negative
-            enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(eventIncidence.collectionId)
-            onTriggered:
-            {
-                MauiCalendar.CalendarManager.deleteIncidenceOccurrence(eventIncidence.originalIncidencePtr, eventDialog.occurrenceStart)
-                eventDialog.close()
+                deleteConfirmation.pendingKind = eventDialog.occurrenceStart !== null && eventIncidence.recurrenceData.frequency > 0 ? "occurrence" : "event"
+                deleteConfirmation.incidence = eventIncidence.originalIncidencePtr
+                deleteConfirmation.occurrence = eventDialog.occurrenceStart
+                deleteConfirmation.open()
             }
         }
 
@@ -729,6 +821,8 @@ Item
                 }
                 else
                 {
+                    if (MauiCalendar.Filter.collectionIds.includes(String(eventIncidence.collectionId)))
+                        MauiCalendar.Filter.toggleCollection(eventIncidence.collectionId)
                     MauiCalendar.CalendarManager.addIncidence(eventIncidence)
                     if (root.currentView === 0)
                     {
@@ -743,16 +837,15 @@ Item
         property list<Action> eventActions: {
             const actions = [cancelAction]
             if (eventDialog.editing)
-            {
-                actions.push(deleteSeriesAction)
-                if (eventDialog.occurrenceStart !== null)
-                    actions.push(deleteOccurrenceAction)
-            }
+                actions.push(deleteAction)
             actions.push(saveAction)
             return actions
         }
 
         actions: eventActions
+        actionBar.columns: Math.min(3, eventDialog.actions.length)
+        actionBar.rows: Math.ceil(eventDialog.actions.length / actionBar.columns)
+        actionBar.Layout.topMargin: Maui.Style.space.big
 
         MauiCalendar.IncidenceWrapper
         {
@@ -764,20 +857,18 @@ Item
             id: _eventTitleField
             Layout.fillWidth: true
             Maui.Controls.title: i18n("Event title")
-            Maui.Controls.subtitle: eventDialog.titleTouched && eventIncidence.summary.trim().length === 0 ? i18n("Event title cannot be empty.") : ""
-            Maui.Controls.status: eventDialog.titleTouched && eventIncidence.summary.trim().length === 0 ? Maui.Controls.Negative : Maui.Controls.Normal
+            Maui.Controls.subtitle: eventIncidence.summary.trim().length === 0 ? i18n("Event title cannot be empty.") : ""
+            Maui.Controls.status: eventIncidence.summary.trim().length === 0 ? Maui.Controls.Negative : Maui.Controls.Normal
             text: eventIncidence.summary
-            onTextEdited: { eventDialog.titleTouched = true; eventIncidence.summary = text }
+            onTextEdited: eventIncidence.summary = text
             onAccepted: eventIncidence.summary = text
         }
 
-        Maui.SectionItem
+        Maui.FlexSectionItem
         {
             Layout.fillWidth: true
-            flat: true
-            leftPadding: 0
-            rightPadding: 0
             label1.text: i18n("All day")
+            label2.text: i18n("The event lasts the entire day.")
 
             template.content: Switch
             {
@@ -799,7 +890,6 @@ Item
             Layout.fillWidth: true
             padding: 0
             flat: true
-            label1.text: i18n("Date & Time")
 
             GridLayout
             {
@@ -811,7 +901,7 @@ Item
                 ColumnLayout
                 {
                     Layout.fillWidth: true
-                    Label { text: i18n("Start") }
+                    Label { text: i18n("Date start") }
                     MauiCalendar.DateComboBox
                     {
                         id: _startDateComboBox
@@ -835,7 +925,7 @@ Item
                 ColumnLayout
                 {
                     Layout.fillWidth: true
-                    Label { text: i18n("End") }
+                    Label { text: i18n("Date end") }
                     MauiCalendar.DateComboBox
                     {
                         id: _endDateComboBox
@@ -1360,28 +1450,94 @@ Item
             flat: true
             label1.text: i18n("Time zone")
 
-            ComboBox
+            GridLayout
             {
-                id: _timeZoneComboBox
                 Layout.fillWidth: true
-                popupScrollBar: true
-                model: MauiCalendar.TimeZoneListModel
+                columns: Maui.Handy.isMobile ? 1 : 2
+                columnSpacing: Maui.Style.space.medium
+                rowSpacing: Maui.Style.space.small
+
+                ColumnLayout
                 {
-                    id: _timeZonesModel
+                    Layout.fillWidth: true
+                    Label { text: i18n("Region") }
+                    ComboBox
+                    {
+                        id: _timeZoneRegionComboBox
+                        Layout.fillWidth: true
+                        model: root.timeZoneRegions
+                        currentIndex: root.timeZoneRegions.indexOf(eventDialog.selectedTimeZoneRegion)
+                        onActivated: function(index)
+                        {
+                            const region = root.timeZoneRegions[index]
+                            eventDialog.selectedTimeZoneRegion = region
+                            root.updateTimeZoneCities(region)
+                            if (root.timeZoneCities.length > 0)
+                                eventIncidence.timeZone = root.timeZoneCities[0].id
+                        }
+                        popup.implicitHeight: popup.contentItem ? Math.min(popup.contentItem.contentHeight + popup.topPadding + popup.bottomPadding, root.availableHeight * 0.5) : 0
+                    }
                 }
 
-                textRole: "display"
-                valueRole: "id"
-                displayText: String(eventIncidence.timeZone) === "Floating" ? i18n("Auto") : String(eventIncidence.timeZone).replace("_", " ")
-                onActivated: function(index)
+                ColumnLayout
                 {
-                    if (currentValue !== undefined && currentValue !== null && String(currentValue).length > 0)
-                        eventIncidence.timeZone = currentValue
+                    Layout.fillWidth: true
+                    Label { text: i18n("City") }
+                    ComboBox
+                    {
+                        id: _timeZoneCityComboBox
+                        Layout.fillWidth: true
+                        model: root.timeZoneCities
+                        textRole: "city"
+                        valueRole: "id"
+                        currentIndex: root.timeZoneCities.findIndex(function(option) { return option.id === String(eventIncidence.timeZone) })
+                        onActivated: function(index)
+                        {
+                            const timeZone = currentValue
+                            if (timeZone !== undefined && timeZone !== null && String(timeZone).length > 0)
+                                eventIncidence.timeZone = timeZone
+                        }
+                        popup.implicitHeight: popup.contentItem ? Math.min(popup.contentItem.contentHeight + popup.topPadding + popup.bottomPadding, root.availableHeight * 0.5) : 0
+                    }
                 }
-
-                popup.implicitHeight: popup.contentItem ? Math.min(popup.contentItem.contentHeight + popup.topPadding + popup.bottomPadding, root.availableHeight * 0.5) : 0
-
             }
+        }
+    }
+
+    MauiCalendar.IncidenceWrapper
+    {
+        id: eventPreviewIncidence
+    }
+
+    Maui.InfoDialog
+    {
+        id: eventDetailsDialog
+        property var incidence: null
+        property var occurrence: null
+        title: eventPreviewIncidence.summary.length > 0 ? eventPreviewIncidence.summary : i18n("Event details")
+        message: root.eventPreviewMessage()
+        standardButtons: Dialog.Discard | Dialog.Apply
+
+        Component.onCompleted:
+        {
+            standardButton(Dialog.Discard).text = i18n("Delete")
+            standardButton(Dialog.Apply).text = i18n("Edit event")
+        }
+
+        onDiscarded:
+        {
+            deleteConfirmation.pendingKind = occurrence !== null && eventPreviewIncidence.recurrenceData.frequency > 0 ? "occurrence" : "event"
+            deleteConfirmation.incidence = incidence
+            deleteConfirmation.occurrence = occurrence
+            deleteConfirmation.open()
+        }
+
+        onApplied:
+        {
+            const incidenceToEdit = incidence
+            const occurrenceToEdit = occurrence
+            close()
+            root.openExistingEvent(incidenceToEdit, occurrenceToEdit)
         }
     }
 
@@ -1735,11 +1891,11 @@ Item
         property var occurrence: null
         property bool recurring: false
         property int collectionId: -1
-        title: incidence ? incidence.summary : ""
+        title: incidence && incidence.summary !== undefined && incidence.summary !== null ? String(incidence.summary) : ""
 
         MenuItem
         {
-            text: i18n("Open event")
+            text: i18n("Edit event")
             icon.name: "document-edit"
             onTriggered: root.openExistingEvent(eventContextMenu.incidence, eventContextMenu.occurrence)
         }
@@ -1749,7 +1905,8 @@ Item
         MenuItem
         {
             visible: !eventContextMenu.recurring
-            text: i18n("Delete event…")
+            height: visible ? implicitHeight : 0
+            text: i18n("Delete")
             icon.name: "edit-delete"
             enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
             onTriggered:
@@ -1764,6 +1921,7 @@ Item
         MenuItem
         {
             visible: eventContextMenu.recurring
+            height: visible ? implicitHeight : 0
             text: i18n("Delete this occurrence…")
             icon.name: "edit-delete"
             enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
@@ -1779,6 +1937,7 @@ Item
         MenuItem
         {
             visible: eventContextMenu.recurring
+            height: visible ? implicitHeight : 0
             text: i18n("Delete series…")
             icon.name: "edit-delete"
             enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
@@ -1877,6 +2036,7 @@ Item
     Maui.InfoDialog
     {
         id: deleteConfirmation
+        implicitWidth: Maui.Style.units.gridUnit * 22
         property string pendingKind: ""
         property var incidence: null
         property var occurrence: null
@@ -1897,6 +2057,11 @@ Item
                 MauiCalendar.CalendarManager.deleteIncidenceOccurrence(incidence, occurrence)
             else if (pendingKind === "event")
                 MauiCalendar.CalendarManager.deleteIncidence(incidence)
+            if (pendingKind === "occurrence" || pendingKind === "event")
+            {
+                eventDialog.close()
+                eventDetailsDialog.close()
+            }
             pendingKind = ""
             incidence = null
             occurrence = null

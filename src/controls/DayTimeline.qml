@@ -36,8 +36,10 @@ Item
     readonly property real timelineOffset: Maui.Style.rowHeight / 2
     readonly property real timelineHeight: 24 * hourHeight + 2 * timelineOffset
     readonly property bool currentDateInWeek: {
-        const today = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate())
-        const weekStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+        const today = new Date(currentTime)
+        today.setHours(0, 0, 0, 0)
+        const weekStart = new Date(startDate)
+        weekStart.setHours(0, 0, 0, 0)
         const weekEnd = new Date(weekStart)
         weekEnd.setDate(weekEnd.getDate() + 7)
         return today >= weekStart && today < weekEnd
@@ -100,7 +102,9 @@ Item
                         clip: control.dayCount === 1
 
                         property date dayDate: new Date(control.startDate.getFullYear(), control.startDate.getMonth(), control.startDate.getDate() + index)
-                        readonly property bool isToday: Qt.formatDate(dayDate, "yyyyMMdd") === Qt.formatDate(control.currentTime, "yyyyMMdd")
+                        readonly property bool isToday: dayDate.getFullYear() === control.currentTime.getFullYear()
+                                                        && dayDate.getMonth() === control.currentTime.getMonth()
+                                                        && dayDate.getDate() === control.currentTime.getDate()
 
                         Item
                         {
@@ -222,7 +226,7 @@ Item
                                 height: Maui.Style.space.tiny / 4
                                 y: Math.round(control.timelineOffset + index * control.hourHeight - height / 2)
                                 color: Qt.darker(Maui.Theme.textColor, 2.2)
-                                z: 3
+                                z: 0
                             }
                         }
 
@@ -233,7 +237,7 @@ Item
                             width: Maui.Style.space.tiny / 4
                             height: control.tableRules ? 24 * control.hourHeight : parent.height
                             color: Qt.darker(Maui.Theme.textColor, 2.2)
-                            z: 3
+                            z: 0
                         }
 
                         Rectangle
@@ -244,7 +248,7 @@ Item
                             width: Maui.Style.space.tiny / 4
                             height: control.tableRules ? 24 * control.hourHeight : parent.height
                             color: Qt.darker(Maui.Theme.textColor, 2.2)
-                            z: 3
+                            z: 0
                         }
 
                         Repeater

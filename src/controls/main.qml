@@ -116,7 +116,11 @@ Maui.ApplicationWindow
     Connections
     {
         target: MauiCalendar.Filter
-        function onCollectionIdsChanged() { root.refreshTaskItems() }
+        function onCollectionIdsChanged()
+        {
+            agendaSettings.hiddenCollectionIds = MauiCalendar.Filter.collectionIds.join(",")
+            root.refreshTaskItems()
+        }
     }
 
     AgendaDialogs
@@ -573,8 +577,7 @@ Maui.ApplicationWindow
             viewTitle: root.currentViewTitle
             onDateClicked: function(date) { root.selectDate(date) }
             onDateDoubleClicked: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
-            onIncidenceClicked: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
-            onMoreEventsClicked: function(date) { root.selectDate(date); root.currentView = 1 }
+            onIncidenceClicked: function(incidence, occurrence) { agendaDialogs.openEventDetails(incidence, occurrence) }
             onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
             onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
@@ -589,7 +592,7 @@ Maui.ApplicationWindow
             viewTitle: root.currentViewTitle
             workWeek: root.workWeek
             onDateSelected: function(date) { root.selectDate(date) }
-            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
+            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openEventDetails(incidence, occurrence) }
             onTimeSlotActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEventAt(date) }
             onDateActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
             onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
@@ -603,7 +606,7 @@ Maui.ApplicationWindow
         AgendaView
         {
             currentDate: root.currentDate
-            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
+            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openEventDetails(incidence, occurrence) }
             onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
             onDateContextRequested: function(date, anchor, x, y) { agendaDialogs.showDateContext(date, anchor, x, y) }
         }
@@ -616,7 +619,7 @@ Maui.ApplicationWindow
         {
             selectedDate: root.currentDate
             viewTitle: root.currentViewTitle
-            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openExistingEvent(incidence, occurrence) }
+            onIncidenceActivated: function(incidence, occurrence) { agendaDialogs.openEventDetails(incidence, occurrence) }
             onTimeSlotActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEventAt(date) }
             onDateActivated: function(date) { root.selectDate(date); agendaDialogs.openNewEvent(date) }
             onEventContextRequested: function(incidence, occurrence, recurring, collectionId, anchor, x, y) { agendaDialogs.showEventContext(incidence, occurrence, recurring, collectionId, anchor, x, y) }
@@ -653,7 +656,7 @@ Maui.ApplicationWindow
                 {
                     if (hasDate)
                         root.selectDate(occurrence)
-                    agendaDialogs.openExistingEvent(incidence, occurrence)
+                    agendaDialogs.openEventDetails(incidence, occurrence)
                 }
             }
         }
