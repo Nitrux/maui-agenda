@@ -16,6 +16,17 @@ Item
     required property date currentDate
     required property int currentView
     required property real availableHeight
+    readonly property var itemColorOptions: [
+        { label: i18n("Default"), value: "" },
+        { label: i18n("Blue"), value: "#1d99f3" },
+        { label: i18n("Green"), value: "#52b788" },
+        { label: i18n("Amber"), value: "#d89b4a" },
+        { label: i18n("Red"), value: "#d1495b" },
+        { label: i18n("Violet"), value: "#7b61ff" },
+        { label: i18n("Teal"), value: "#00a6a6" },
+        { label: i18n("Coral"), value: "#e07a5f" },
+        { label: i18n("Gray"), value: "#6c757d" }
+    ]
 
     signal selectDateRequested(date date)
     signal selectViewRequested(int view)
@@ -60,6 +71,45 @@ Item
     }
     function openNewTask(date) { taskDialog.openNew(date) }
     function openExistingTask(incidence) { taskDialog.openExisting(incidence) }
+    function openTaskDetails(incidence)
+    {
+        if (!incidence)
+            return
+
+        taskDetailsDialog.incidence = incidence
+        taskPreviewIncidence.incidencePtr = incidence
+        taskPreviewIncidence.triggerEditMode()
+        taskDetailsDialog.open()
+    }
+    function taskPreviewMessage()
+    {
+        const details = []
+        const start = taskPreviewIncidence.incidenceStart
+        const due = taskPreviewIncidence.incidenceEnd
+
+        if (start && start.getTime() >= 0)
+        {
+            const startText = taskPreviewIncidence.incidenceStartDateDisplay + (taskPreviewIncidence.allDay ? "" : " · " + taskPreviewIncidence.incidenceStartTimeDisplay)
+            details.push(i18n("Start") + ": " + startText)
+        }
+
+        if (due && due.getTime() >= 0)
+        {
+            const dueText = taskPreviewIncidence.incidenceEndDateDisplay + (taskPreviewIncidence.allDay ? "" : " · " + taskPreviewIncidence.incidenceEndTimeDisplay)
+            details.push(i18n("Due") + ": " + dueText)
+        }
+        else
+            details.push(i18n("No due date"))
+
+        details.push(taskPreviewIncidence.todoCompleted ? i18n("Completed") : i18n("Incomplete"))
+        if (taskPreviewIncidence.priority > 0)
+            details.push(i18n("Priority %1", taskPreviewIncidence.priority))
+        if (taskPreviewIncidence.location.length > 0)
+            details.push(i18n("Location") + ": " + taskPreviewIncidence.location)
+        if (taskPreviewIncidence.description.length > 0)
+            details.push(taskPreviewIncidence.description)
+        return details.join("\n\n")
+    }
     function openDateDialog() { dateDialog.pickedDate = root.currentDate; dateDialog.open() }
     function openCalendarManagement() { calendarManagementDialog.open() }
     function openAccountsDialog() { caldavAccountsDialog.open() }
@@ -967,6 +1017,24 @@ Item
             }
         }
 
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Color")
+
+            ComboBox
+            {
+                Layout.fillWidth: true
+                model: root.itemColorOptions
+                textRole: "label"
+                valueRole: "value"
+                currentIndex: Math.max(0, root.itemColorOptions.findIndex(option => option.value === eventIncidence.itemColor))
+                onActivated: eventIncidence.itemColor = currentValue
+            }
+        }
+
         Maui.TextField
         {
             id: _eventLocationField
@@ -1509,6 +1577,29 @@ Item
         id: eventPreviewIncidence
     }
 
+    MauiCalendar.IncidenceWrapper
+    {
+        id: taskPreviewIncidence
+    }
+
+    Maui.InfoDialog
+    {
+        id: taskDetailsDialog
+        property var incidence: null
+        title: taskPreviewIncidence.summary.length > 0 ? taskPreviewIncidence.summary : i18n("Task details")
+        message: root.taskPreviewMessage()
+        standardButtons: Dialog.Close | Dialog.Apply
+
+        Component.onCompleted: standardButton(Dialog.Apply).text = i18n("Edit task")
+
+        onApplied:
+        {
+            const incidenceToEdit = incidence
+            close()
+            root.openExistingTask(incidenceToEdit)
+        }
+    }
+
     Maui.InfoDialog
     {
         id: eventDetailsDialog
@@ -1633,6 +1724,24 @@ Item
                 valueRole: "collectionId"
                 currentIndex: taskCalendarComboBox.indexOfValue(taskIncidence.collectionId)
                 onActivated: taskIncidence.collectionId = currentValue
+            }
+        }
+
+        Maui.SectionItem
+        {
+            Layout.fillWidth: true
+            padding: 0
+            flat: true
+            label1.text: i18n("Color")
+
+            ComboBox
+            {
+                Layout.fillWidth: true
+                model: root.itemColorOptions
+                textRole: "label"
+                valueRole: "value"
+                currentIndex: Math.max(0, root.itemColorOptions.findIndex(option => option.value === taskIncidence.itemColor))
+                onActivated: taskIncidence.itemColor = currentValue
             }
         }
 
@@ -1980,7 +2089,7 @@ Item
 
         MenuItem
         {
-            text: i18n("Open task")
+            text: i18n("Edit task")
             icon.name: "document-edit"
             onTriggered: root.openExistingTask(taskContextMenu.task.incidencePtr)
         }

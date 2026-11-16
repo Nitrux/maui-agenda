@@ -633,7 +633,7 @@ Maui.ApplicationWindow
         TasksView
         {
             taskItems: root.taskItems
-            onTaskActivated: function(incidence) { agendaDialogs.openExistingTask(incidence) }
+            onTaskActivated: function(incidence) { agendaDialogs.openTaskDetails(incidence) }
             onCompletionRequested: function(task, completed) { root.setTaskCompleted(task, completed) }
             onDeletionRequested: function(incidence) { MauiCalendar.CalendarManager.deleteIncidence(incidence); root.refreshTaskItems() }
             onTaskContextRequested: function(task, anchor, x, y) { agendaDialogs.showTaskContext(task, anchor, x, y) }

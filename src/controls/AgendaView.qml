@@ -14,13 +14,31 @@ ColumnLayout
     signal eventContextRequested(var incidence, var occurrence, bool recurring, int collectionId, var anchor, real x, real y)
     signal dateContextRequested(date date, var anchor, real x, real y)
 
+    readonly property int daysAhead: 31
+
     spacing: Maui.Style.space.big
+
+    function dayLabel(date)
+    {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+
+        const day = new Date(date)
+        day.setHours(0, 0, 0, 0)
+        if (day.getTime() === today.getTime())
+            return i18n("Today")
+        if (day.getTime() === tomorrow.getTime())
+            return i18n("Tomorrow")
+        return day.toLocaleDateString(Qt.locale(), "dddd, MMMM d, yyyy")
+    }
 
     MauiCalendar.IncidenceOccurrenceModel
     {
         id: agendaEvents
         start: control.currentDate
-        length: 31
+        length: control.daysAhead
         filter: MauiCalendar.Filter
     }
 
@@ -50,11 +68,85 @@ ColumnLayout
 
         delegate: Maui.ListBrowserDelegate
         {
+            id: eventCard
+            required property string summary
+            required property string description
+            required property string location
+            required property date startTime
+            required property string durationString
+            required property var color
+            required property var incidencePtr
+            required property bool recurs
+            required property int collectionId
+            required property bool allDay
+            required property int incidenceType
+
             width: ListView.view.width
-            label1.text: model.summary
-            label2.text: model.allDay ? i18n("All day") : model.startTime.toLocaleString(Qt.locale(), Locale.ShortFormat)
-            onClicked: control.incidenceActivated(model.incidencePtr, model.startTime)
-            onRightClicked: function(mouse) { control.eventContextRequested(model.incidencePtr, model.startTime, model.recurs, model.collectionId, this, mouse.x, mouse.y) }
+            height: visible ? implicitHeight : 0
+            visible: incidenceType === MauiCalendar.IncidenceWrapper.TypeEvent
+            iconVisible: false
+            onClicked: control.incidenceActivated(incidencePtr, startTime)
+            onRightClicked: function(mouse) { control.eventContextRequested(incidencePtr, startTime, recurs, collectionId, this, mouse.x, mouse.y) }
+
+            ColumnLayout
+            {
+                Layout.fillWidth: true
+                spacing: Maui.Style.space.tiny
+
+                Label
+                {
+                    Layout.fillWidth: true
+                    text: eventCard.summary
+                    elide: Text.ElideRight
+                }
+
+                Label
+                {
+                    Layout.fillWidth: true
+                    text: control.dayLabel(eventCard.startTime) + " · " + (eventCard.allDay ? i18n("All day") : eventCard.startTime.toLocaleTimeString(Qt.locale(), Locale.ShortFormat) + (eventCard.durationString.length > 0 ? " · " + eventCard.durationString : ""))
+                    elide: Text.ElideRight
+                    opacity: 0.7
+                }
+
+                Label
+                {
+                    Layout.fillWidth: true
+                    visible: eventCard.location.length > 0
+                    text: eventCard.location
+                    elide: Text.ElideRight
+                    opacity: 0.7
+                }
+
+                Label
+                {
+                    Layout.fillWidth: true
+                    visible: eventCard.description.length > 0
+                    text: eventCard.description
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    opacity: 0.7
+                }
+            }
+
+            background: Rectangle
+            {
+                radius: Maui.Style.radiusV
+                color: Qt.tint(Maui.Theme.alternateBackgroundColor, Qt.rgba(eventCard.color.r, eventCard.color.g, eventCard.color.b, 0.2))
+                border.color: Maui.Theme.backgroundColor
+                border.width: Maui.Style.space.tiny / 4
+
+                Rectangle
+                {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.margins: Maui.Style.space.small
+                    width: Maui.Style.space.tiny / 2
+                    radius: Maui.Style.radiusV
+                    color: eventCard.color
+                }
+            }
         }
     }
 }

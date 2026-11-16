@@ -68,6 +68,109 @@ Item
                 Item
                 {
                     Layout.preferredWidth: control.gutterWidth
+                }
+
+                Repeater
+                {
+                    model: control.dayCount
+
+                    delegate: Item
+                    {
+                        id: allDayColumn
+                        required property int index
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: control.minimumDayWidth
+                        implicitHeight: allDayCount * Maui.Style.rowHeight
+                        property int allDayCount: 0
+                        property date dayDate: new Date(control.startDate.getFullYear(), control.startDate.getMonth(), control.startDate.getDate() + index)
+
+                        MauiCalendar.IncidenceOccurrenceModel
+                        {
+                            id: allDayIncidences
+                            start: allDayColumn.dayDate
+                            length: 1
+                            filter: control.filter
+                        }
+
+                        Column
+                        {
+                            id: allDayItems
+                            width: parent.width
+                            spacing: Maui.Style.space.tiny - Maui.Style.space.tiny
+
+                            Repeater
+                            {
+                                model: allDayIncidences
+
+                                delegate: Button
+                                {
+                                    id: allDayChip
+                                    required property bool allDay
+                                    required property string summary
+                                    required property var color
+                                    required property var incidencePtr
+                                    required property var startTime
+                                    required property bool recurs
+                                    required property int collectionId
+                                    visible: allDay
+                                    width: allDayItems.width
+                                    height: allDay ? Maui.Style.rowHeight : 0
+                                    implicitHeight: height
+                                    padding: Maui.Style.space.tiny
+                                    Component.onCompleted: if (allDay) allDayColumn.allDayCount++
+                                    Component.onDestruction: if (allDay) allDayColumn.allDayCount--
+                                    onClicked: control.incidenceActivated(incidencePtr, startTime)
+
+                                    TapHandler
+                                    {
+                                        acceptedButtons: Qt.RightButton
+                                        onTapped: function(eventPoint) { control.eventContextRequested(allDayChip.incidencePtr, allDayChip.startTime, allDayChip.recurs, allDayChip.collectionId, allDayChip, eventPoint.position.x, eventPoint.position.y) }
+                                    }
+
+                                    background: Rectangle
+                                    {
+                                        radius: Maui.Style.radiusV
+                                        color: Qt.alpha(allDayChip.color, 0.28)
+                                        border.color: allDayChip.color
+                                        border.width: Maui.Style.space.tiny / 4
+                                    }
+
+                                    contentItem: RowLayout
+                                    {
+                                        spacing: Maui.Style.space.tiny
+
+                                        Rectangle
+                                        {
+                                            Layout.preferredWidth: Maui.Style.space.tiny / 2
+                                            Layout.preferredHeight: Maui.Style.space.medium
+                                            Layout.alignment: Qt.AlignVCenter
+                                            radius: Maui.Style.radiusV
+                                            color: allDayChip.color
+                                        }
+
+                                        Label
+                                        {
+                                            Layout.fillWidth: true
+                                            text: allDayChip.summary
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            RowLayout
+            {
+                Layout.fillWidth: true
+                spacing: Maui.Style.space.tiny - Maui.Style.space.tiny
+
+                Item
+                {
+                    Layout.preferredWidth: control.gutterWidth
                     Layout.preferredHeight: control.timelineHeight
 
                     Repeater
@@ -150,68 +253,6 @@ Item
                             id: hourlyEvents
                             model: dayEvents
                             filters: MauiCalendar.HourlyIncidenceModel.NoAllDay
-                        }
-
-                        Repeater
-                        {
-                            z: -1
-                            model: dayEvents
-
-                            delegate: Item
-                            {
-                                id: allDayBackground
-                                required property bool allDay
-                                required property var color
-                                visible: allDay
-                                anchors.fill: parent
-
-                                Rectangle
-                                {
-                                    anchors.fill: parent
-                                    color: Qt.alpha(allDayBackground.color, 0.10)
-                                    border.color: Qt.alpha(allDayBackground.color, 0.48)
-                                    border.width: Maui.Style.space.tiny / 4
-                                }
-                            }
-                        }
-
-                        Column
-                        {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            z: 2
-                            spacing: Maui.Style.space.tiny
-                            clip: true
-
-                            Repeater
-                            {
-                                model: dayEvents
-
-                                delegate: Maui.ListDelegate
-                                {
-                                    id: allDayLabel
-                                    required property bool allDay
-                                    required property string summary
-                                    required property var color
-                                    required property var incidencePtr
-                                    required property var startTime
-                                    required property bool recurs
-                                    required property int collectionId
-                                    visible: allDay
-                                    width: parent.width
-                                    height: allDay ? Maui.Style.rowHeight : 0
-                                    label: summary
-                                    background: Rectangle
-                                    {
-                                        color: Qt.alpha(allDayLabel.color, 0.24)
-                                        border.color: allDayLabel.color
-                                        border.width: Maui.Style.space.tiny / 4
-                                    }
-                                    onClicked: control.incidenceActivated(incidencePtr, startTime)
-                                    onRightClicked: function(mouse) { control.eventContextRequested(incidencePtr, startTime, recurs, collectionId, this, mouse.x, mouse.y) }
-                                }
-                            }
                         }
 
                         Repeater
