@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 import org.mauikit.controls as Maui
 import org.mauikit.calendar as MauiCalendar
+import org.mauikit.accounts as MA
 
 Pane
 {
@@ -14,6 +15,7 @@ Pane
     signal viewSelected(int view)
     signal collectionVisibilityChanged(string ids)
     signal collectionPermissionsRequested(int collectionId)
+    signal calendarExportRequested(int collectionId, string name)
 
     function toggleCollection(collectionId, index)
     {
@@ -107,17 +109,8 @@ Pane
 
         MenuItem
         {
-            text: i18n("Show calendar")
-            visible: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId))
-            icon.name: "view-visible"
-            onTriggered: control.toggleCollection(calendarContextMenu.collectionId, calendarContextMenu.collectionIndex)
-        }
-
-        MenuItem
-        {
-            text: i18n("Hide calendar")
-            visible: !MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId))
-            icon.name: "view-hidden"
+            text: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId)) ? i18n("Show calendar") : i18n("Hide calendar")
+            icon.name: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId)) ? "view-visible" : "view-hidden"
             onTriggered: control.toggleCollection(calendarContextMenu.collectionId, calendarContextMenu.collectionIndex)
         }
 
@@ -134,19 +127,32 @@ Pane
 
         MenuItem
         {
-            text: i18n("Permissions")
-            icon.name: "user-group-properties"
-            visible: MauiCalendar.CalendarManager.isCalDavCollection(calendarContextMenu.collectionId)
-            onTriggered: control.collectionPermissionsRequested(calendarContextMenu.collectionId)
+            text: i18n("Export calendar")
+            icon.name: "document-export"
+            onTriggered: control.calendarExportRequested(calendarContextMenu.collectionId, calendarContextMenu.collectionName)
         }
-
-        MenuSeparator { visible: calendarContextMenu.canDeleteCollection }
 
         MenuItem
         {
-            text: i18n("Delete calendar…")
+            text: i18n("Permissions")
+            icon.name: "user-group-properties"
+            visible: MauiCalendar.CalendarManager.isCalDavCollection(calendarContextMenu.collectionId)
+            height: visible ? implicitHeight : 0
+            onTriggered: control.collectionPermissionsRequested(calendarContextMenu.collectionId)
+        }
+
+        MenuSeparator
+        {
+            visible: calendarContextMenu.canDeleteCollection
+            height: visible ? implicitHeight : 0
+        }
+
+        MenuItem
+        {
+            text: i18n("Delete calendar")
             icon.name: "edit-delete"
             visible: calendarContextMenu.canDeleteCollection
+            height: visible ? implicitHeight : 0
             enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(calendarContextMenu.collectionId)
             onTriggered:
             {
@@ -265,6 +271,39 @@ Pane
                     calendarContextMenu.popup(point.x, point.y)
                 }
 
+            }
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        }
+
+        Maui.SectionHeader
+        {
+            visible: MA.Accounts.caldavAccounts.length > 0
+            Layout.fillWidth: true
+            text1: i18n("Accounts")
+            label1.font.weight: Font.Bold
+            label1.font.pixelSize: 14
+            label2.visible: false
+        }
+
+        ListView
+        {
+            id: accountList
+            visible: MA.Accounts.caldavAccounts.length > 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.leftMargin: Maui.Style.contentMargins
+            Layout.rightMargin: Maui.Style.contentMargins
+            clip: true
+            model: MA.Accounts.caldavAccounts
+            delegate: Maui.ListDelegate
+            {
+                required property var modelData
+                width: accountList.width
+                label: modelData.url
+                iconName: "network-server"
+                iconVisible: true
+                iconSize: Maui.Style.iconSize
+                flat: true
             }
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         }

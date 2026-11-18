@@ -111,9 +111,30 @@ Item
         return details.join("\n\n")
     }
     function openDateDialog() { dateDialog.pickedDate = root.currentDate; dateDialog.open() }
-    function openCalendarManagement() { calendarManagementDialog.open() }
-    function openAccountsDialog() { caldavAccountsDialog.open() }
-    function openSubscriptionDialog() { subscriptionDialog.open() }
+    function openAccountsDialog() { calendarAccountsDialog.open() }
+    function openAddCalDavAccount()
+    {
+        caldavUrlField.clear()
+        caldavUsernameField.clear()
+        caldavAuthTypeField.currentIndex = 0
+        caldavTokenUrlField.clear()
+        caldavClientIdField.clear()
+        caldavAuthorizationUrlField.clear()
+        caldavPasswordField.clear()
+        caldavRefreshTokenField.clear()
+        caldavClientSecretField.clear()
+        caldavAutoSyncCheck.checked = true
+        caldavDialog.open()
+    }
+    function openSubscriptionDialog()
+    {
+        subscriptionUrlField.clear()
+        subscriptionDisplayNameField.clear()
+        subscriptionUsernameField.clear()
+        subscriptionPasswordField.clear()
+        subscriptionDialog.errorMessage = ""
+        subscriptionDialog.open()
+    }
     function openNewCalendarDialog() { newCalendarDialog.open() }
     function openPermissions(collectionId) { permissionsDialog.openForCollection(collectionId) }
 
@@ -214,6 +235,13 @@ Item
         deleteConfirmation.open()
     }
 
+    function requestRemoveSubscription(url)
+    {
+        deleteConfirmation.pendingKind = "subscription"
+        deleteConfirmation.subscriptionUrl = url
+        deleteConfirmation.open()
+    }
+
     function editCalDavAccount(account)
     {
         caldavUrlField.text = account.url
@@ -226,7 +254,6 @@ Item
         caldavRefreshTokenField.clear()
         caldavClientSecretField.clear()
         caldavAutoSyncCheck.checked = account.enabled
-        caldavAccountsDialog.close()
         caldavDialog.open()
     }
 
@@ -262,14 +289,15 @@ Item
         dialog.open()
     }
 
-    function saveCalendarFile()
+    function saveCalendarFile(collectionId, calendarName)
     {
+        const fileName = (calendarName || "agenda").replace(/[\\/:*?"<>|]/g, "_") + ".ics"
         const dialog = fileDialogComponent.createObject(root, {
             mode: FM.FileDialog.Modes.Save,
-            suggestedFileName: "agenda.ics",
+            suggestedFileName: fileName,
             callback: function(urls) {
                 if (urls && urls.length > 0)
-                    MauiCalendar.CalendarManager.exportFile(root.localFilePath(urls[0]))
+                    MauiCalendar.CalendarManager.exportFile(root.localFilePath(urls[0]), collectionId)
             }
         })
         dialog.open()
@@ -296,76 +324,92 @@ Item
 
     Maui.InfoDialog
     {
-        id: calendarManagementDialog
-        title: i18n("Manage Calendars")
-        standardButtons: Dialog.Close
-
-        ColumnLayout
+        id: subscriptionDialog
+        implicitWidth: Math.min(root.width - Maui.Style.contentMargins * 2, Maui.Style.units.gridUnit * 30)
+        property string errorMessage: ""
+        title: i18n("Connect iCal Subscription")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Component.onCompleted:
         {
-            Layout.fillWidth: true
+            const subscribeButton = standardButton(Dialog.Ok)
+            subscribeButton.text = i18n("Subscribe")
+            subscribeButton.enabled = Qt.binding(function() { return subscriptionUrlField.text.trim().length > 0 })
+        }
+        onAccepted:
+        {
+            if (MauiCalendar.CalendarManager.subscribeUrl(subscriptionUrlField.text, subscriptionDisplayNameField.text, subscriptionUsernameField.text, subscriptionPasswordField.text))
+                close()
+            else
+                errorMessage = i18n("The URL is invalid or credentials could not be stored.")
+        }
+        onRejected: close()
+        onOpened: subscriptionUrlField.forceActiveFocus()
 
-            Maui.SectionHeader
-            {
-                Layout.fillWidth: true
-                text1: i18n("Calendars")
-                text2: i18n("Create, import, export, or subscribe to calendars.")
-            }
+        Maui.FlexSectionItem
+        {
+            label1.text: i18n("Feed URL")
+            label2.text: i18n("Read-only feed; webcal:// links are accepted.")
+            label2.wrapMode: Text.Wrap
 
-            Button
+            Maui.TextField
             {
+                id: subscriptionUrlField
                 Layout.fillWidth: true
-                text: i18n("New calendar")
-                icon.name: "list-add"
-                onClicked: { calendarManagementDialog.close(); root.openNewCalendarDialog() }
-            }
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Subscribe to calendar")
-                icon.name: "internet-services"
-                onClicked: { calendarManagementDialog.close(); root.openSubscriptionDialog() }
-            }
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Import calendar")
-                icon.name: "document-import"
-                onClicked: { calendarManagementDialog.close(); root.openCalendarFile() }
-            }
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Export calendar")
-                icon.name: "document-export"
-                onClicked: { calendarManagementDialog.close(); root.saveCalendarFile() }
-            }
-
-            Maui.SectionHeader
-            {
-                Layout.fillWidth: true
-                text1: i18n("Accounts")
-                text2: i18n("Connect to and manage CalDAV accounts.")
-            }
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Manage CalDAV accounts")
-                icon.name: "network-server"
-                onClicked: { calendarManagementDialog.close(); root.openAccountsDialog() }
+                placeholderText: "https://example.com/calendar.ics"
+                inputMethodHints: Qt.ImhUrlCharactersOnly
             }
         }
-    }
 
-    Maui.InputDialog
-    {
-        id: subscriptionDialog
-        title: i18n("Subscribe to Calendar")
-        message: i18n("Enter a webcal or HTTPS calendar URL.")
-        onFinished: function(url) { MauiCalendar.CalendarManager.subscribeUrl(url) }
+        Maui.FlexSectionItem
+        {
+            label1.text: i18n("Display name (optional)")
+            label2.text: i18n("Name shown in the sidebar.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: subscriptionDisplayNameField
+                Layout.fillWidth: true
+                placeholderText: i18n("University timetable")
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            label1.text: i18n("Username (optional)")
+            label2.text: i18n("For feeds requiring sign-in.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: subscriptionUsernameField
+                Layout.fillWidth: true
+                placeholderText: i18n("Username")
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            label1.text: i18n("Password (optional)")
+            label2.text: i18n("For feeds requiring sign-in.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.PasswordField
+            {
+                id: subscriptionPasswordField
+                Layout.fillWidth: true
+                placeholderText: i18n("Password")
+            }
+        }
+
+        Label
+        {
+            Layout.fillWidth: true
+            visible: subscriptionDialog.errorMessage.length > 0
+            text: subscriptionDialog.errorMessage
+            color: Maui.Theme.negativeTextColor
+            wrapMode: Text.WordWrap
+        }
     }
 
     Maui.InputDialog
@@ -379,9 +423,11 @@ Item
     Maui.InfoDialog
     {
         id: caldavDialog
+        implicitWidth: Math.min(root.width - Maui.Style.contentMargins * 2, Maui.Style.units.gridUnit * 30)
         property string oauthMessage: ""
         title: i18n("CalDAV Account")
         standardButtons: Dialog.Ok | Dialog.Cancel
+        Component.onCompleted: standardButton(Dialog.Ok).text = i18n("Connect")
         onAccepted:
         {
             const account = {
@@ -400,124 +446,198 @@ Item
         }
         onRejected: close()
 
-        Maui.TextField
+        Maui.FlexSectionItem
         {
-            id: caldavUrlField
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("Calendar URL")
-            text: ""
-        }
+            label1.text: i18n("Calendar URL")
+            label2.text: i18n("Address of the CalDAV calendar server.")
+            label2.wrapMode: Text.Wrap
 
-        ComboBox
-        {
-            id: caldavAuthTypeField
-            Layout.fillWidth: true
-            model: [i18n("Username and password"), i18n("OAuth 2 access token")]
-            currentIndex: 0
-        }
-
-        Maui.TextField
-        {
-            id: caldavUsernameField
-            visible: caldavAuthTypeField.currentIndex === 0
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("Username")
-            text: ""
-        }
-
-        Maui.PasswordField
-        {
-            id: caldavPasswordField
-            Layout.fillWidth: true
-            Maui.Controls.title: caldavAuthTypeField.currentIndex === 1 ? i18n("OAuth 2 access token") : i18n("Password")
-        }
-
-        Maui.TextField
-        {
-            id: caldavAuthorizationUrlField
-            visible: caldavAuthTypeField.currentIndex === 1
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("OAuth 2 authorization endpoint")
-            text: ""
-        }
-
-        Maui.TextField
-        {
-            id: caldavTokenUrlField
-            visible: caldavAuthTypeField.currentIndex === 1
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("OAuth 2 token endpoint")
-            text: ""
-        }
-
-        Maui.TextField
-        {
-            id: caldavClientIdField
-            visible: caldavAuthTypeField.currentIndex === 1
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("OAuth 2 client ID")
-            text: ""
-        }
-
-        Maui.PasswordField
-        {
-            id: caldavRefreshTokenField
-            visible: caldavAuthTypeField.currentIndex === 1
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("OAuth 2 refresh token")
-        }
-
-        Maui.PasswordField
-        {
-            id: caldavClientSecretField
-            visible: caldavAuthTypeField.currentIndex === 1
-            Layout.fillWidth: true
-            Maui.Controls.title: i18n("OAuth 2 client secret")
-        }
-
-        Label
-        {
-            Layout.fillWidth: true
-            visible: caldavDialog.oauthMessage.length > 0
-            text: caldavDialog.oauthMessage
-            color: Maui.Theme.negativeTextColor
-            wrapMode: Text.WordWrap
-        }
-
-        Button
-        {
-            Layout.fillWidth: true
-            visible: caldavAuthTypeField.currentIndex === 1
-            text: i18n("Authorize with provider")
-            onClicked:
+            Maui.TextField
             {
-                if (MauiCalendar.CalendarManager.startCalDavOAuthAuthorization(caldavUrlField.text, caldavAuthorizationUrlField.text, caldavTokenUrlField.text, caldavClientIdField.text, caldavClientSecretField.text))
-                    caldavDialog.oauthMessage = i18n("Authorization started in the web browser.")
-                else
-                    caldavDialog.oauthMessage = i18n("The OAuth authorization could not be started.")
+                id: caldavUrlField
+                Layout.fillWidth: true
+                placeholderText: i18n("https://server.example.com/caldav")
+                inputMethodHints: Qt.ImhUrlCharactersOnly
+                text: ""
             }
         }
 
-        CheckBox
+        Maui.FlexSectionItem
         {
-            id: caldavAutoSyncCheck
-            Layout.fillWidth: true
-            text: i18n("Synchronize automatically")
-            checked: true
+            label1.text: i18n("Authentication")
+            label2.text: i18n("Choose how to authenticate with the server.")
+            label2.wrapMode: Text.Wrap
+
+            ComboBox
+            {
+                id: caldavAuthTypeField
+                Layout.fillWidth: true
+                model: [i18n("Username and password"), i18n("OAuth 2 access token")]
+                currentIndex: 0
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 0
+            label1.text: i18n("Username")
+            label2.text: i18n("Username used to authenticate with the server.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: caldavUsernameField
+                Layout.fillWidth: true
+                placeholderText: i18n("Username")
+                text: ""
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            label1.text: caldavAuthTypeField.currentIndex === 1 ? i18n("OAuth 2 access token") : i18n("Password")
+            label2.text: caldavAuthTypeField.currentIndex === 1 ? i18n("Access token used to authenticate with the server.") : i18n("Password used to authenticate with the server.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.PasswordField
+            {
+                id: caldavPasswordField
+                Layout.fillWidth: true
+                placeholderText: caldavAuthTypeField.currentIndex === 1 ? i18n("Access token") : i18n("Password")
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("OAuth 2 authorization endpoint")
+            label2.text: i18n("Address used to start provider authorization.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: caldavAuthorizationUrlField
+                Layout.fillWidth: true
+                inputMethodHints: Qt.ImhUrlCharactersOnly
+                text: ""
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("OAuth 2 token endpoint")
+            label2.text: i18n("Address used to exchange authorization tokens.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: caldavTokenUrlField
+                Layout.fillWidth: true
+                inputMethodHints: Qt.ImhUrlCharactersOnly
+                text: ""
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("OAuth 2 client ID")
+            label2.text: i18n("Client identifier registered with the provider.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.TextField
+            {
+                id: caldavClientIdField
+                Layout.fillWidth: true
+                text: ""
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("OAuth 2 refresh token")
+            label2.text: i18n("Token used to refresh access when it expires.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.PasswordField
+            {
+                id: caldavRefreshTokenField
+                Layout.fillWidth: true
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("OAuth 2 client secret")
+            label2.text: i18n("Secret registered with the provider.")
+            label2.wrapMode: Text.Wrap
+
+            Maui.PasswordField
+            {
+                id: caldavClientSecretField
+                Layout.fillWidth: true
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            visible: caldavAuthTypeField.currentIndex === 1
+            label1.text: i18n("Authorization")
+            label2.text: caldavDialog.oauthMessage
+            label2.visible: caldavDialog.oauthMessage.length > 0
+            label2.wrapMode: Text.Wrap
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Authorize with provider")
+                onClicked:
+                {
+                    if (MauiCalendar.CalendarManager.startCalDavOAuthAuthorization(caldavUrlField.text, caldavAuthorizationUrlField.text, caldavTokenUrlField.text, caldavClientIdField.text, caldavClientSecretField.text))
+                        caldavDialog.oauthMessage = i18n("Authorization started in the web browser.")
+                    else
+                        caldavDialog.oauthMessage = i18n("The OAuth authorization could not be started.")
+                }
+            }
+        }
+
+        Maui.FlexSectionItem
+        {
+            label1.text: i18n("Synchronize automatically")
+            label2.text: i18n("Keep this calendar synchronized automatically.")
+            label2.wrapMode: Text.Wrap
+
+            Switch
+            {
+                id: caldavAutoSyncCheck
+                checked: true
+            }
         }
     }
 
     Maui.InfoDialog
     {
-        id: caldavAccountsDialog
-        title: i18n("Manage CalDAV Accounts")
-        standardButtons: Dialog.Close
+        id: calendarAccountsDialog
+        title: i18n("Manage Calendar Accounts")
+        standardButtons: Dialog.NoButton
+
+        Maui.SectionHeader
+        {
+            Layout.fillWidth: true
+            text1: i18n("CalDAV accounts")
+            label1.font.weight: Font.Bold
+            label2.visible: false
+        }
 
         ListView
         {
             id: caldavAccountsList
+            visible: MA.Accounts.caldavAccounts.length > 0
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: false
             implicitHeight: contentHeight
             model: MA.Accounts.caldavAccounts
             delegate: RowLayout
@@ -557,21 +677,65 @@ Item
         {
             Layout.fillWidth: true
             text: i18n("Add CalDAV account")
-            onClicked:
+            onClicked: root.openAddCalDavAccount()
+        }
+
+        Maui.SectionHeader
+        {
+            Layout.fillWidth: true
+            text1: i18n("iCal subscriptions")
+            label1.font.weight: Font.Bold
+            label2.visible: false
+        }
+
+        ListView
+        {
+            id: subscriptionsList
+            visible: MauiCalendar.CalendarManager.subscriptions.length > 0
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: contentHeight
+            model: MauiCalendar.CalendarManager.subscriptions
+            delegate: RowLayout
             {
-                caldavUrlField.clear()
-                caldavUsernameField.clear()
-                caldavAuthTypeField.currentIndex = 0
-                caldavTokenUrlField.clear()
-                caldavClientIdField.clear()
-                caldavAuthorizationUrlField.clear()
-                caldavPasswordField.clear()
-                caldavRefreshTokenField.clear()
-                caldavClientSecretField.clear()
-                caldavAutoSyncCheck.checked = true
-                caldavAccountsDialog.close()
-                caldavDialog.open()
+                required property string modelData
+                width: subscriptionsList.width
+
+                ColumnLayout
+                {
+                    Layout.fillWidth: true
+                    spacing: Maui.Style.space.tiny
+
+                    Label
+                    {
+                        Layout.fillWidth: true
+                        text: MauiCalendar.CalendarManager.subscriptionName(modelData)
+                        elide: Text.ElideRight
+                    }
+
+                    Label
+                    {
+                        Layout.fillWidth: true
+                        text: modelData
+                        elide: Text.ElideMiddle
+                        color: Maui.Theme.disabledTextColor
+                    }
+                }
+
+                ToolButton
+                {
+                    icon.name: "edit-delete"
+                    onClicked: root.requestRemoveSubscription(modelData)
+                }
             }
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        }
+
+        Button
+        {
+            Layout.fillWidth: true
+            text: i18n("Subscribe to calendar")
+            onClicked: root.openSubscriptionDialog()
         }
     }
 
@@ -2133,7 +2297,7 @@ Item
 
         MenuItem
         {
-            text: i18n("Remove account…")
+            text: i18n("Remove account")
             icon.name: "edit-delete"
             onTriggered:
             {
@@ -2150,8 +2314,9 @@ Item
         property var incidence: null
         property var occurrence: null
         property string accountUrl: ""
-        title: pendingKind === "task" ? i18n("Delete Task") : pendingKind === "account" ? i18n("Remove Account") : i18n("Delete Event")
-        message: pendingKind === "account" ? i18n("Remove this CalDAV account?") : i18n("This action cannot be undone.")
+        property string subscriptionUrl: ""
+        title: pendingKind === "task" ? i18n("Delete Task") : pendingKind === "account" ? i18n("Remove CalDAV Account") : pendingKind === "subscription" ? i18n("Remove Calendar Subscription") : i18n("Delete Event")
+        message: pendingKind === "account" ? i18n("Remove this CalDAV account?") : pendingKind === "subscription" ? i18n("Remove this calendar subscription and its events?") : i18n("This action cannot be undone.")
         standardButtons: Dialog.Yes | Dialog.Cancel
 
         onAccepted:
@@ -2160,6 +2325,8 @@ Item
                 root.taskDeletionRequested(incidence)
             else if (pendingKind === "account")
                 MA.Accounts.removeCalDavAccount(accountUrl)
+            else if (pendingKind === "subscription")
+                MauiCalendar.CalendarManager.unsubscribeUrl(subscriptionUrl)
             else if (pendingKind === "series")
                 MauiCalendar.CalendarManager.deleteIncidenceSeries(incidence)
             else if (pendingKind === "occurrence")
@@ -2172,9 +2339,10 @@ Item
                 eventDetailsDialog.close()
             }
             pendingKind = ""
+            accountUrl = ""
+            subscriptionUrl = ""
             incidence = null
             occurrence = null
-            accountUrl = ""
         }
     }
 

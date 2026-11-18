@@ -178,6 +178,7 @@ Maui.ApplicationWindow
                 hiddenCollectionIds: agendaSettings.hiddenCollectionIds
                 onCollectionVisibilityChanged: function(ids) { agendaSettings.hiddenCollectionIds = ids }
                 onCollectionPermissionsRequested: function(collectionId) { agendaDialogs.openPermissions(collectionId) }
+                onCalendarExportRequested: function(collectionId, name) { agendaDialogs.saveCalendarFile(collectionId, name) }
                 onViewSelected: (view) => { root.searchActive = false; root.currentView = view }
             }
         }
@@ -228,7 +229,14 @@ Maui.ApplicationWindow
                 onTriggered: MauiCalendar.CalendarManager.syncAllCalDavAccounts()
             }
 
-            readonly property list<Action> floatingActions: root.currentView === 5 ? [createTaskAction, goToDateAction, synchronizeCalendarsAction] : [createEventAction, goToDateAction, synchronizeCalendarsAction]
+            property Action importCalendarAction: Action
+            {
+                text: i18n("Import calendar")
+                icon.name: "document-import"
+                onTriggered: agendaDialogs.openCalendarFile()
+            }
+
+            readonly property list<Action> floatingActions: root.currentView === 5 ? [createTaskAction, goToDateAction, synchronizeCalendarsAction, importCalendarAction] : [createEventAction, goToDateAction, synchronizeCalendarsAction, importCalendarAction]
 
             focus: true
             Keys.enabled: true
@@ -281,6 +289,7 @@ Maui.ApplicationWindow
                 },
                 ToolSeparator
                 {
+                    visible: root.currentView !== 5
                     height: Maui.Style.space.medium
                     topPadding: 0
                     bottomPadding: 0
@@ -288,6 +297,7 @@ Maui.ApplicationWindow
                 Maui.ToolActions
                 {
                     visible: root.currentView !== 5
+                    Behavior on implicitWidth { enabled: false }
                     checkable: false
                     display: ToolButton.IconOnly
 
@@ -304,6 +314,23 @@ Maui.ApplicationWindow
                         icon.name: "go-next"
                         onTriggered: root.changeDate(1)
                     }
+                },
+                ToolSeparator
+                {
+                    visible: root.currentView !== 5
+                    height: Maui.Style.space.medium
+                    topPadding: 0
+                    bottomPadding: 0
+                },
+                ToolButton
+                {
+                    visible: root.currentView !== 5
+                    icon.name: "list-add"
+                    ToolTip.delay: 1000
+                    ToolTip.timeout: 5000
+                    ToolTip.visible: hovered
+                    ToolTip.text: i18n("New calendar")
+                    onClicked: agendaDialogs.openNewCalendarDialog()
                 }
             ]
 
@@ -354,9 +381,9 @@ Maui.ApplicationWindow
 
                     MenuItem
                     {
-                        text: i18n("Manage Calendars")
-                        icon.name: "view-calendar"
-                        onTriggered: agendaDialogs.openCalendarManagement()
+                        text: i18n("Manage Calendar Accounts")
+                        icon.name: "network-server"
+                        onTriggered: agendaDialogs.openAccountsDialog()
                     }
 
                     MenuSeparator {}
