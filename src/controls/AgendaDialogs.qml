@@ -432,7 +432,18 @@ Item
         property string oauthMessage: ""
         property string errorMessage: ""
         title: i18n("CalDAV Account")
-        standardButtons: Dialog.NoButton
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Component.onCompleted:
+        {
+            const connectButton = standardButton(Dialog.Ok)
+            connectButton.text = i18n("Connect")
+            connectButton.enabled = Qt.binding(function() {
+                return caldavUrlField.text.trim().length > 0
+                    && (caldavAuthTypeField.currentIndex === 1
+                        || (caldavUsernameField.text.trim().length > 0 && caldavPasswordField.text.length > 0))
+            })
+        }
+        onAccepted: caldavDialog.saveAccount()
         onRejected: close()
 
         function saveAccount()
@@ -456,26 +467,6 @@ Item
             }
             else
                 errorMessage = i18n("Could not save the account. Check the URL and system keyring.")
-        }
-
-        footer: RowLayout
-        {
-            spacing: Maui.Style.space.small
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Connect")
-                Maui.Controls.status: Maui.Controls.Positive
-                onClicked: caldavDialog.saveAccount()
-            }
-
-            Button
-            {
-                Layout.fillWidth: true
-                text: i18n("Cancel")
-                onClicked: caldavDialog.reject()
-            }
         }
 
         Maui.FlexSectionItem
