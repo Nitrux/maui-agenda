@@ -124,6 +124,7 @@ Item
         caldavRefreshTokenField.clear()
         caldavClientSecretField.clear()
         caldavAutoSyncCheck.checked = true
+        caldavDialog.errorMessage = ""
         caldavDialog.open()
     }
     function openSubscriptionDialog()
@@ -254,6 +255,7 @@ Item
         caldavRefreshTokenField.clear()
         caldavClientSecretField.clear()
         caldavAutoSyncCheck.checked = account.enabled
+        caldavDialog.errorMessage = ""
         caldavDialog.open()
     }
 
@@ -337,7 +339,7 @@ Item
         }
         onAccepted:
         {
-            if (MauiCalendar.CalendarManager.subscribeUrl(subscriptionUrlField.text, subscriptionDisplayNameField.text, subscriptionUsernameField.text, subscriptionPasswordField.text))
+            if (MauiCalendar.CalendarManager.subscribeUrlWithDetails(subscriptionUrlField.text, subscriptionDisplayNameField.text, subscriptionUsernameField.text, subscriptionPasswordField.text))
                 close()
             else
                 errorMessage = i18n("The URL is invalid or credentials could not be stored.")
@@ -396,6 +398,9 @@ Item
 
             Maui.PasswordField
             {
+                echoMode: TextInput.Password
+                passwordMaskDelay: 0
+                actions: []
                 id: subscriptionPasswordField
                 Layout.fillWidth: true
                 placeholderText: i18n("Password")
@@ -425,10 +430,12 @@ Item
         id: caldavDialog
         implicitWidth: Math.min(root.width - Maui.Style.contentMargins * 2, Maui.Style.units.gridUnit * 30)
         property string oauthMessage: ""
+        property string errorMessage: ""
         title: i18n("CalDAV Account")
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        Component.onCompleted: standardButton(Dialog.Ok).text = i18n("Connect")
-        onAccepted:
+        standardButtons: Dialog.NoButton
+        onRejected: close()
+
+        function saveAccount()
         {
             const account = {
                 url: caldavUrlField.text,
@@ -442,9 +449,34 @@ Item
                 authorizationUrl: caldavAuthorizationUrlField.text,
                 enabled: caldavAutoSyncCheck.checked
             }
-            if (MA.Accounts.saveCalDavAccount(account)) close()
+            if (MA.Accounts.saveCalDavAccount(account))
+            {
+                errorMessage = ""
+                close()
+            }
+            else
+                errorMessage = i18n("Could not save the account. Check the URL and system keyring.")
         }
-        onRejected: close()
+
+        footer: RowLayout
+        {
+            spacing: Maui.Style.space.small
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Connect")
+                Maui.Controls.status: Maui.Controls.Positive
+                onClicked: caldavDialog.saveAccount()
+            }
+
+            Button
+            {
+                Layout.fillWidth: true
+                text: i18n("Cancel")
+                onClicked: caldavDialog.reject()
+            }
+        }
 
         Maui.FlexSectionItem
         {
@@ -501,6 +533,9 @@ Item
 
             Maui.PasswordField
             {
+                echoMode: TextInput.Password
+                passwordMaskDelay: 0
+                actions: []
                 id: caldavPasswordField
                 Layout.fillWidth: true
                 placeholderText: caldavAuthTypeField.currentIndex === 1 ? i18n("Access token") : i18n("Password")
@@ -563,6 +598,9 @@ Item
 
             Maui.PasswordField
             {
+                echoMode: TextInput.Password
+                passwordMaskDelay: 0
+                actions: []
                 id: caldavRefreshTokenField
                 Layout.fillWidth: true
             }
@@ -577,6 +615,9 @@ Item
 
             Maui.PasswordField
             {
+                echoMode: TextInput.Password
+                passwordMaskDelay: 0
+                actions: []
                 id: caldavClientSecretField
                 Layout.fillWidth: true
             }
@@ -604,6 +645,15 @@ Item
             }
         }
 
+        Label
+        {
+            Layout.fillWidth: true
+            visible: caldavDialog.errorMessage.length > 0
+            text: caldavDialog.errorMessage
+            color: Maui.Theme.negativeTextColor
+            wrapMode: Text.WordWrap
+        }
+
         Maui.FlexSectionItem
         {
             label1.text: i18n("Synchronize automatically")
@@ -627,6 +677,48 @@ Item
         Maui.SectionHeader
         {
             Layout.fillWidth: true
+            text1: i18n("Local calendars")
+            label1.font.weight: Font.Bold
+            label2.visible: false
+        }
+
+        ListView
+        {
+            id: localCalendarsList
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: contentHeight
+            model: MauiCalendar.CalendarManager.collections
+            delegate: Item
+            {
+                required property int collectionId
+                required property string display
+                readonly property bool localCalendar: !MauiCalendar.CalendarManager.isCalDavCollection(collectionId)
+                                                      && MauiCalendar.CalendarManager.subscriptionForCollection(collectionId).length === 0
+                width: localCalendarsList.width
+                visible: localCalendar
+                implicitHeight: visible ? localCalendarLabel.implicitHeight : 0
+                height: implicitHeight
+
+                Label
+                {
+                    id: localCalendarLabel
+                    anchors.fill: parent
+                    text: display
+                }
+            }
+        }
+
+        Button
+        {
+            Layout.fillWidth: true
+            text: i18n("New calendar")
+            onClicked: root.openNewCalendarDialog()
+        }
+
+        Maui.SectionHeader
+        {
+            Layout.fillWidth: true
             text1: i18n("CalDAV accounts")
             label1.font.weight: Font.Bold
             label2.visible: false
@@ -644,6 +736,7 @@ Item
             {
                 required property var modelData
                 width: caldavAccountsList.width
+                implicitHeight: caldavAccountDetails.implicitHeight
 
                 TapHandler
                 {
@@ -651,11 +744,26 @@ Item
                     onTapped: function(eventPoint) { root.showAccountContext(modelData, parent, eventPoint.position.x, eventPoint.position.y) }
                 }
 
-                Label
+                ColumnLayout
                 {
+                    id: caldavAccountDetails
                     Layout.fillWidth: true
-                    text: modelData.url
-                    elide: Text.ElideMiddle
+                    spacing: Maui.Style.space.tiny
+
+                    Label
+                    {
+                        Layout.fillWidth: true
+                        text: modelData.url
+                        elide: Text.ElideMiddle
+                    }
+
+                    Label
+                    {
+                        Layout.fillWidth: true
+                        visible: modelData.username.length > 0
+                        text: i18n("Username: %1", modelData.username)
+                        color: Maui.Theme.disabledTextColor
+                    }
                 }
 
                 ToolButton
@@ -700,9 +808,11 @@ Item
             {
                 required property string modelData
                 width: subscriptionsList.width
+                implicitHeight: subscriptionDetails.implicitHeight
 
                 ColumnLayout
                 {
+                    id: subscriptionDetails
                     Layout.fillWidth: true
                     spacing: Maui.Style.space.tiny
 
@@ -944,6 +1054,12 @@ Item
         readonly property var quickReminderValues: [0, 5, 10, 15, 30, 60, 1440]
         readonly property var quickReminderLabels: [i18n("No Reminder"), i18n("5 Minutes Before"), i18n("10 Minutes Before"), i18n("15 Minutes Before"), i18n("30 Minutes Before"), i18n("1 Hour Before"), i18n("1 Day Before"), i18n("Custom")]
         title: editing ? i18n("Edit Event") : i18n("Add Event")
+        header: Maui.DialogHeader
+        {
+            width: parent ? parent.width : implicitWidth
+            title: eventDialog.title
+            onCloseRequested: eventDialog.close()
+        }
         hint: 1
         maxWidth: Maui.Style.units.gridUnit * (Maui.Handy.isMobile ? 22 : 40)
         persistent: true
@@ -1801,6 +1917,12 @@ Item
         id: taskDialog
         property bool editing: false
         title: editing ? i18n("Edit Task") : i18n("New Task")
+        header: Maui.DialogHeader
+        {
+            width: parent ? parent.width : implicitWidth
+            title: taskDialog.title
+            onCloseRequested: taskDialog.close()
+        }
         hint: 1
         maxWidth: Maui.Style.units.gridUnit * 22
         persistent: true
@@ -2168,7 +2290,7 @@ Item
 
         MenuItem
         {
-            text: i18n("Edit event")
+            text: i18n("Edit Event")
             icon.name: "document-edit"
             onTriggered: root.openExistingEvent(eventContextMenu.incidence, eventContextMenu.occurrence)
         }
@@ -2195,7 +2317,7 @@ Item
         {
             visible: eventContextMenu.recurring
             height: visible ? implicitHeight : 0
-            text: i18n("Delete this occurrence…")
+            text: i18n("Delete This Occurrence…")
             icon.name: "edit-delete"
             enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
             onTriggered:
@@ -2211,7 +2333,7 @@ Item
         {
             visible: eventContextMenu.recurring
             height: visible ? implicitHeight : 0
-            text: i18n("Delete series…")
+            text: i18n("Delete Series…")
             icon.name: "edit-delete"
             enabled: eventContextMenu.incidence && !MauiCalendar.CalendarManager.isCollectionReadOnly(eventContextMenu.collectionId)
             onTriggered:
@@ -2232,14 +2354,14 @@ Item
 
         MenuItem
         {
-            text: i18n("New event")
+            text: i18n("New Event")
             icon.name: "list-add"
             onTriggered: root.openNewEvent(dayContextMenu.date)
         }
 
         MenuItem
         {
-            text: i18n("New task")
+            text: i18n("New Task")
             icon.name: "view-task"
             onTriggered: root.openNewTask(dayContextMenu.date)
         }
@@ -2253,14 +2375,14 @@ Item
 
         MenuItem
         {
-            text: i18n("Edit task")
+            text: i18n("Edit Task")
             icon.name: "document-edit"
             onTriggered: root.openExistingTask(taskContextMenu.task.incidencePtr)
         }
 
         MenuItem
         {
-            text: taskContextMenu.task && taskContextMenu.task.completed ? i18n("Mark incomplete") : i18n("Mark complete")
+            text: taskContextMenu.task && taskContextMenu.task.completed ? i18n("Mark Incomplete") : i18n("Mark Complete")
             icon.name: taskContextMenu.task && taskContextMenu.task.completed ? "edit-undo" : "task-complete"
             enabled: taskContextMenu.task && !MauiCalendar.CalendarManager.isCollectionReadOnly(taskContextMenu.task.collectionId)
             onTriggered: root.taskCompletionRequested(taskContextMenu.task, !taskContextMenu.task.completed)
@@ -2270,7 +2392,7 @@ Item
 
         MenuItem
         {
-            text: i18n("Delete task…")
+            text: i18n("Delete Task…")
             icon.name: "edit-delete"
             enabled: taskContextMenu.task && !MauiCalendar.CalendarManager.isCollectionReadOnly(taskContextMenu.task.collectionId)
             onTriggered:
@@ -2290,14 +2412,14 @@ Item
 
         MenuItem
         {
-            text: i18n("Edit account")
+            text: i18n("Edit Account")
             icon.name: "document-edit"
             onTriggered: root.editCalDavAccount(accountContextMenu.account)
         }
 
         MenuItem
         {
-            text: i18n("Remove account")
+            text: i18n("Remove Account")
             icon.name: "edit-delete"
             onTriggered:
             {

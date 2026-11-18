@@ -109,14 +109,14 @@ Pane
 
         MenuItem
         {
-            text: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId)) ? i18n("Show calendar") : i18n("Hide calendar")
+            text: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId)) ? i18n("Show Calendar") : i18n("Hide Calendar")
             icon.name: MauiCalendar.Filter.collectionIds.includes(String(calendarContextMenu.collectionId)) ? "view-visible" : "view-hidden"
             onTriggered: control.toggleCollection(calendarContextMenu.collectionId, calendarContextMenu.collectionIndex)
         }
 
         MenuItem
         {
-            text: i18n("Set calendar color")
+            text: i18n("Set Calendar Color")
             icon.name: "color-picker"
             onTriggered:
             {
@@ -127,7 +127,7 @@ Pane
 
         MenuItem
         {
-            text: i18n("Export calendar")
+            text: i18n("Export Calendar")
             icon.name: "document-export"
             onTriggered: control.calendarExportRequested(calendarContextMenu.collectionId, calendarContextMenu.collectionName)
         }
@@ -149,8 +149,9 @@ Pane
 
         MenuItem
         {
-            text: i18n("Delete calendar")
+            text: i18n("Delete Calendar")
             icon.name: "edit-delete"
+            Maui.Controls.status: Maui.Controls.Negative
             visible: calendarContextMenu.canDeleteCollection
             height: visible ? implicitHeight : 0
             enabled: !MauiCalendar.CalendarManager.isCollectionReadOnly(calendarContextMenu.collectionId)
@@ -239,7 +240,8 @@ Pane
         {
             id: calendarList
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: false
+            Layout.preferredHeight: contentHeight
             Layout.leftMargin: Maui.Style.contentMargins
             Layout.rightMargin: Maui.Style.contentMargins
             clip: true
@@ -248,8 +250,9 @@ Pane
             {
                 required property int collectionId
                 required property int index
+                required property string display
                 width: calendarList.width
-                label: calendarList.model.data(calendarList.model.index(index, 0), Qt.DisplayRole)
+                label: display
                 iconName: "view-calendar"
                 iconVisible: true
                 iconSize: Maui.Style.iconSize
@@ -258,7 +261,9 @@ Pane
                 onClicked:
                 {
                     calendarList.currentIndex = index
-                    control.toggleCollection(collectionId, index)
+                    const hidden = MauiCalendar.CalendarManager.collectionIds().filter(id => id !== String(collectionId))
+                    MauiCalendar.Filter.setCollectionIds(hidden)
+                    control.collectionVisibilityChanged(hidden.join(","))
                 }
 
                 onRightClicked: function(mouse)
@@ -290,7 +295,8 @@ Pane
             id: accountList
             visible: MA.Accounts.caldavAccounts.length > 0
             Layout.fillWidth: true
-            Layout.fillHeight: true
+            Layout.fillHeight: false
+            Layout.preferredHeight: contentHeight
             Layout.leftMargin: Maui.Style.contentMargins
             Layout.rightMargin: Maui.Style.contentMargins
             clip: true
@@ -307,6 +313,8 @@ Pane
             }
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         }
+
+        Item { Layout.fillHeight: true }
     }
 
 }

@@ -289,7 +289,6 @@ Maui.ApplicationWindow
                 },
                 ToolSeparator
                 {
-                    visible: root.currentView !== 5
                     height: Maui.Style.space.medium
                     topPadding: 0
                     bottomPadding: 0
@@ -314,23 +313,6 @@ Maui.ApplicationWindow
                         icon.name: "go-next"
                         onTriggered: root.changeDate(1)
                     }
-                },
-                ToolSeparator
-                {
-                    visible: root.currentView !== 5
-                    height: Maui.Style.space.medium
-                    topPadding: 0
-                    bottomPadding: 0
-                },
-                ToolButton
-                {
-                    visible: root.currentView !== 5
-                    icon.name: "list-add"
-                    ToolTip.delay: 1000
-                    ToolTip.timeout: 5000
-                    ToolTip.visible: hovered
-                    ToolTip.text: i18n("New calendar")
-                    onClicked: agendaDialogs.openNewCalendarDialog()
                 }
             ]
 
